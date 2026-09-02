@@ -395,7 +395,6 @@ textarea.hero-edit-input.lede {
 .timeline-item,
 .node,
 .reg-row,
-.focus-card,
 .modal {
   border-radius: 22px;
   padding: 1.4rem 1.5rem;
@@ -526,6 +525,56 @@ textarea.hero-edit-input.lede {
 .node.active {
   transform: translateY(-4px);
   border-color: rgba(212, 180, 90, 0.45);
+}
+
+.node.note-open {
+  z-index: 2;
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.node-note {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 180, 90, 0.35);
+  background:
+    linear-gradient(180deg, rgba(212, 180, 90, 0.12), rgba(8, 10, 16, 0.55));
+  animation: noteIn 0.22s ease;
+}
+
+.node-note-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.node-note-head span {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.node-note p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+@keyframes noteIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .node.male {

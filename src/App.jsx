@@ -463,8 +463,9 @@ export default function App() {
                   return (
                     <article
                       key={m.id}
-                      className={`node glass ${active ? "active" : ""} ${m.gender}`}
-                      onClick={() => setFocusId(m.id)}
+                      className={`node glass ${active ? "active note-open" : ""} ${m.gender}`}
+                      onClick={() => setFocusId((id) => (id === m.id ? "" : m.id))}
+                      title={active ? "Click to hide note" : "Click to show note"}
                     >
                       {parent && <div className="stem" title={`Child of ${parent.name}`} />}
                       <p className="node-gen">Dot {m.generation}</p>
@@ -486,6 +487,21 @@ export default function App() {
                       {parent && <p className="parent">Child of {parent.name}</p>}
                       {kids.length > 0 && (
                         <p className="kids">{kids.length} descendant{kids.length === 1 ? "" : "s"}</p>
+                      )}
+                      {active && (
+                        <div className="node-note" onClick={(e) => e.stopPropagation()}>
+                          <div className="node-note-head">
+                            <span>Note</span>
+                            <button
+                              type="button"
+                              className="link"
+                              onClick={() => setFocusId("")}
+                            >
+                              Close
+                            </button>
+                          </div>
+                          <p>{m.bio?.trim() ? m.bio : "No note recorded for this member yet."}</p>
+                        </div>
                       )}
                       {isAdmin && (
                         <div className="card-actions" onClick={(e) => e.stopPropagation()}>
@@ -511,39 +527,6 @@ export default function App() {
           ))}
         </div>
       </section>
-
-      {focusId && byId[focusId] && (
-        <aside className="panel glass focus-card">
-          <div className="panel-head">
-            <h2>{byId[focusId].name}</h2>
-            <button className="btn ghost" onClick={() => setFocusId("")}>
-              Close
-            </button>
-          </div>
-          <p className="muted">
-            Dot {byId[focusId].generation} · {byId[focusId].branch}
-          </p>
-          <p>{byId[focusId].bio}</p>
-          <dl className="facts">
-            <div>
-              <dt>Date of birth</dt>
-              <dd>{formatDate(byId[focusId].dob)}</dd>
-            </div>
-            <div>
-              <dt>Date of departure</dt>
-              <dd>{formatDate(byId[focusId].dod)}</dd>
-            </div>
-            <div>
-              <dt>Parent</dt>
-              <dd>{byId[byId[focusId].parentId]?.name || "Founding generation"}</dd>
-            </div>
-            <div>
-              <dt>Spouse</dt>
-              <dd>{byId[focusId].spouse || "—"}</dd>
-            </div>
-          </dl>
-        </aside>
-      )}
 
       <section className="panel" id="media">
         <MediaGallery />
