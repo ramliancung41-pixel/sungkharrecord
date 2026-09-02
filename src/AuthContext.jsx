@@ -8,7 +8,7 @@ import {
   signInWithRedirect,
   signOut,
 } from "firebase/auth";
-import { auth, isFirebaseConfigured } from "./firebase";
+import { auth, firebaseConfigError, isFirebaseConfigured } from "./firebase";
 
 const AuthContext = createContext(null);
 
@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
       async loginWithGoogle() {
         setError("");
         if (!isFirebaseConfigured) {
-          throw new Error("Firebase keys are missing from .env.");
+          throw new Error(firebaseConfigError());
         }
         const provider = new GoogleAuthProvider();
         provider.addScope("email");

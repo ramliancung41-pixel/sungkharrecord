@@ -23,12 +23,31 @@ const firebaseConfig = {
   measurementId: env("VITE_FIREBASE_MEASUREMENT_ID"),
 };
 
+const missingKeys = Object.entries({
+  VITE_FIREBASE_API_KEY: firebaseConfig.apiKey,
+  VITE_FIREBASE_DATABASE_URL: firebaseConfig.databaseURL,
+  VITE_FIREBASE_PROJECT_ID: firebaseConfig.projectId,
+})
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey &&
     firebaseConfig.databaseURL &&
     firebaseConfig.projectId &&
     firebaseConfig.apiKey.startsWith("AIza")
 );
+
+export function firebaseConfigError() {
+  if (isFirebaseConfigured) return "";
+  if (missingKeys.length) {
+    return `Firebase keys missing: ${missingKeys.join(", ")}. Check .env in the project root and restart npm run dev.`;
+  }
+  if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("AIza")) {
+    return "VITE_FIREBASE_API_KEY looks invalid. Copy a fresh key from Firebase Console.";
+  }
+  return "Firebase is not configured. Add VITE_FIREBASE_* keys to .env and restart the dev server.";
+}
 
 let app = null;
 export let auth = null;
@@ -40,7 +59,5 @@ if (isFirebaseConfigured) {
   db = getDatabase(app);
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 } else if (import.meta.env.DEV) {
-  console.warn(
-    "[sungkhar] Missing Firebase env. Copy .env.example to .env and fill VITE_FIREBASE_* values."
-  );
+  console.warn("[sungkhar]", firebaseConfigError());
 }
