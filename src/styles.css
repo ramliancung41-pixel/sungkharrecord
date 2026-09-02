@@ -767,10 +767,50 @@ label {
 }
 
 .foot {
-  margin-top: 3rem;
+  margin-top: 3.5rem;
+  padding: 2rem 1rem 1.2rem;
+  border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.85rem;
   text-align: center;
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+}
+
+.foot-seal {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+
+.foot-title {
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.foot-credit {
+  margin: 0.15rem 0 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.15rem;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.foot-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
 }
 
 .modal-back {

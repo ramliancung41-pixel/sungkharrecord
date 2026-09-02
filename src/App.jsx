@@ -552,11 +552,15 @@ export default function App() {
       </section>
 
       <footer className="foot">
-        <p>Sungkhar Tuanthu · a living family record</p>
-        <p>
+        <div className="foot-seal" aria-hidden="true">
+          ST
+        </div>
+        <p className="foot-title">Sungkhar Tuanthu · a living family record</p>
+        <p className="foot-credit">Created &amp; Developed by Ram Lian Cung</p>
+        <p className="foot-meta">
           {configured
-            ? "Firebase Realtime Database connected."
-            : "Add Firebase keys in .env to sync this chronicle live."}
+            ? "Live with Firebase Realtime Database"
+            : "Add Firebase keys in .env to sync this chronicle live"}
         </p>
       </footer>
 
