@@ -482,6 +482,23 @@ textarea.hero-edit-input.lede {
   margin-bottom: 0.85rem;
 }
 
+.dot-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.btn.danger-btn {
+  border-color: rgba(224, 122, 106, 0.55);
+  color: var(--danger);
+}
+
+.btn.danger-btn:hover {
+  border-color: var(--danger);
+  background: rgba(224, 122, 106, 0.1);
+}
+
 .dot-count {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;

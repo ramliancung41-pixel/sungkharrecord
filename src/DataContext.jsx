@@ -137,6 +137,20 @@ export function DataProvider({ children }) {
         await persist({ ...data, dots: [...current, nextNum] });
         return nextNum;
       },
+      async deleteDot(generation) {
+        if (!isAdmin) throw new Error("Only an Admin can delete a Dot.");
+        const gen = Number(generation);
+        if (!Number.isFinite(gen) || gen < 1) {
+          throw new Error("Invalid Dot number.");
+        }
+        const occupied = (data.members || []).some((m) => Number(m.generation) === gen);
+        if (occupied) {
+          throw new Error("Only empty Dots can be deleted. Remove members from this Dot first.");
+        }
+        const current = normalizeDots(data.dots, data.members).filter((d) => d !== gen);
+        await persist({ ...data, dots: current });
+        return gen;
+      },
       async upsertMember(member) {
         const members = [...data.members];
         const idx = members.findIndex((m) => m.id === member.id);

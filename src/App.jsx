@@ -143,6 +143,7 @@ export default function App() {
     upsertMember,
     deleteMember,
     addDot,
+    deleteDot,
   } = useData();
   const [loginOpen, setLoginOpen] = useState(false);
   const [memberForm, setMemberForm] = useState(null);
@@ -425,20 +426,38 @@ export default function App() {
                   </p>
                 </div>
                 {isAdmin && (
-                  <button
-                    className="btn gold"
-                    type="button"
-                    onClick={() =>
-                      openNewMember(
-                        gen,
-                        gen > 1
-                          ? members.find((m) => Number(m.generation) === gen - 1)?.id || ""
-                          : ""
-                      )
-                    }
-                  >
-                    Add Family / Add Member to this Dot
-                  </button>
+                  <div className="dot-section-actions">
+                    <button
+                      className="btn gold"
+                      type="button"
+                      onClick={() =>
+                        openNewMember(
+                          gen,
+                          gen > 1
+                            ? members.find((m) => Number(m.generation) === gen - 1)?.id || ""
+                            : ""
+                        )
+                      }
+                    >
+                      Add Family / Add Member to this Dot
+                    </button>
+                    {!people.length && (
+                      <button
+                        className="btn ghost danger-btn"
+                        type="button"
+                        onClick={async () => {
+                          if (!window.confirm(`Delete empty Dot ${gen}?`)) return;
+                          try {
+                            await deleteDot(gen);
+                          } catch (err) {
+                            window.alert(err.message || "Could not delete Dot.");
+                          }
+                        }}
+                      >
+                        Delete Dot
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="nodes">
