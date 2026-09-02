@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": "auth != null && (auth.token.email === 'huatnatlai@gmail.com' || auth.token.email === 'vanbt1997@gmail.com')"
+  }
+}
