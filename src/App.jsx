@@ -149,9 +149,7 @@ export default function App() {
   const [eventForm, setEventForm] = useState(null);
   const [editingOrigin, setEditingOrigin] = useState(false);
   const [originDraft, setOriginDraft] = useState(data.chronicle);
-  const [query, setQuery] = useState("");
   const [focusId, setFocusId] = useState("");
-  const [dotFilter, setDotFilter] = useState("all");
   const [mediaOpen, setMediaOpen] = useState(false);
 
   useEffect(() => {
@@ -177,17 +175,18 @@ export default function App() {
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   }, [members, data.dots]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return members.filter((m) => {
-      if (dotFilter !== "all" && String(m.generation) !== String(dotFilter)) return false;
-      if (!q) return true;
-      return [m.name, m.spouse, m.branch, m.bio].join(" ").toLowerCase().includes(q);
-    });
-  }, [members, query, dotFilter]);
-
   function childrenOf(id) {
     return members.filter((m) => m.parentId === id);
+  }
+
+  async function handleAddDot() {
+    const nextNum = await addDot();
+    requestAnimationFrame(() => {
+      document.getElementById(`dot-${nextNum}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
   }
 
   function openNewMember(generation = 1, parentId = "") {
@@ -225,7 +224,6 @@ export default function App() {
           <a href="#timeline">Timeline</a>
           <a href="#tree">Family tree</a>
           <a href="#media">Media</a>
-          <a href="#generations">Dots</a>
         </nav>
         <div className="nav-end">
           <span className={`pulse ${live ? "on" : ""}`} title={status} />
@@ -401,13 +399,7 @@ export default function App() {
           </div>
           {isAdmin && (
             <div className="row">
-              <button
-                className="btn gold"
-                type="button"
-                onClick={async () => {
-                  await addDot();
-                }}
-              >
+              <button className="btn gold" type="button" onClick={handleAddDot}>
                 Add Dot
               </button>
               <button className="btn ghost" type="button" onClick={() => openNewMember(1, "")}>
@@ -422,7 +414,7 @@ export default function App() {
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => (
-            <section key={gen} className="gen-row glass dot-section">
+            <section key={gen} id={`dot-${gen}`} className="gen-row glass dot-section">
               <div className="dot-section-head">
                 <div>
                   <div className="dot-badge">Dot {gen}</div>
@@ -555,42 +547,6 @@ export default function App() {
 
       <section className="panel" id="media">
         <MediaGallery />
-      </section>
-
-      <section className="panel" id="generations">
-        <div className="panel-head wrap">
-          <div>
-            <p className="kicker">Generation marks</p>
-            <h2>Dot register</h2>
-          </div>
-          <div className="filters">
-            <input
-              placeholder="Search a name, spouse, or branch…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <select value={dotFilter} onChange={(e) => setDotFilter(e.target.value)}>
-              <option value="all">All dots</option>
-              {generations.map(([g]) => (
-                <option key={g} value={g}>
-                  Dot {g}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="register">
-          {filtered.map((m) => (
-            <article key={m.id} className="reg-row glass" onClick={() => setFocusId(m.id)}>
-              <span className="pill">Dot {m.generation}</span>
-              <div>
-                <strong>{m.name}</strong>
-                <span>{m.branch}</span>
-              </div>
-              <span className="dob">b. {formatDate(m.dob)}</span>
-            </article>
-          ))}
-        </div>
       </section>
 
       <footer className="foot">
