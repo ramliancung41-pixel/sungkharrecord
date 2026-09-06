@@ -586,6 +586,24 @@ textarea.hero-edit-input.lede {
   margin-right: auto;
 }
 
+.node.empty-slot {
+  cursor: default;
+  border: 1px dashed rgba(212, 180, 90, 0.35);
+  background: rgba(8, 10, 16, 0.28);
+  box-shadow: none;
+  transform: none;
+}
+
+.node.empty-slot.empty-editable {
+  cursor: pointer;
+}
+
+.node.empty-slot h3 {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
 .node {
   cursor: pointer;
   position: relative;

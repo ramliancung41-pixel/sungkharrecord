@@ -7,13 +7,12 @@ import {
   compareLineageCodes,
   computeLineageCodes,
   displayMemberName,
-  displayRelatedName,
+  emptyRootSlot,
   findPrimaryRoot,
   findRootSpouse,
   formatLineageLabel,
   generationFromLineage,
   isMainBloodline,
-  virtualRootSpouse,
 } from "./lineage";
 
 function formatDate(value) {
@@ -219,22 +218,41 @@ export default function App() {
   function rootCoupleCards(people) {
     const root = findPrimaryRoot(members);
     const spouseMember = findRootSpouse(members, root);
-    const cards = [];
-    if (root) {
-      cards.push({
-        member: people.find((p) => p.id === root.id) || root,
+    return [
+      {
+        member: root
+          ? people.find((p) => p.id === root.id) || root
+          : emptyRootSlot("pa", spouseMember?.name || ""),
         role: "pa",
-      });
-    }
-    if (spouseMember) {
-      cards.push({
-        member: people.find((p) => p.id === spouseMember.id) || spouseMember,
+        empty: !root,
+      },
+      {
+        member: spouseMember
+          ? people.find((p) => p.id === spouseMember.id) || spouseMember
+          : emptyRootSlot("nu", root?.name || ""),
         role: "nu",
-      });
-    } else if (root) {
-      cards.push({ member: virtualRootSpouse(root), role: "nu", virtual: true });
-    }
-    return cards;
+        empty: !spouseMember,
+      },
+    ];
+  }
+
+  function openFoundingSlot(role) {
+    const root = findPrimaryRoot(members);
+    const spouseMember = findRootSpouse(members, root);
+    const isFather = role === "pa";
+    setMemberForm({
+      id: newId("m"),
+      name: "",
+      generation: 1,
+      parentId: "",
+      spouse: isFather ? spouseMember?.name || "" : root?.name || root?.spouse || "",
+      dob: "",
+      dod: "",
+      gender: isFather ? "male" : "female",
+      branch: isFather ? "Father · Root" : "Mother · Root",
+      bio: "",
+      isNew: true,
+    });
   }
 
   function openNewMember(generation = 1, parentId = "") {
@@ -469,9 +487,9 @@ export default function App() {
           )}
         </div>
         <p className="hint">
-          Generation <strong>1.</strong> holds only the founding couple (nu le pa), shown as JOHN and
-          JANE. Their children begin in generation <strong>2.</strong> as 1.1, 1.2, 1.3… Further
-          descendants continue 1.1.1, 1.2.1, and so on in later Dots.
+          Generation <strong>1.</strong> holds only the founding couple: Pu Tai Lio (father / root)
+          and Pi Tuak Tlem (mother / root). Their children begin in generation <strong>2.</strong> as
+          1.1, 1.2, 1.3… Empty root slots stay blank until an Admin adds the ancestor.
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => (
@@ -481,7 +499,7 @@ export default function App() {
                   <p className="dot-mark-num">{gen}.</p>
                   <p className="muted dot-count">
                     {gen === 1
-                      ? "Nu le pa · founding couple"
+                      ? "Founding couple · numbered 1."
                       : people.length
                         ? `${people.length} family member${people.length === 1 ? "" : "s"}`
                         : "Empty generation — add the first family"}
@@ -541,50 +559,68 @@ export default function App() {
                   (entry) => {
                     const m = entry.member;
                     const role = entry.role;
-                    const virtual = Boolean(entry.virtual || m.virtual);
-                    const parent = byId[m.parentId];
-                    const kids = virtual ? [] : childrenOf(m.id);
-                    const active = !virtual && focusId === m.id;
-                    const code = virtual ? "1" : lineage[m.id] || String(m.generation || 1);
+                    const empty = Boolean(entry.empty || m.emptySlot || m.virtual);
+                    const parent = empty ? null : byId[m.parentId];
+                    const kids = empty ? [] : childrenOf(m.id);
+                    const active = !empty && focusId === m.id;
+                    const code = empty ? "1" : lineage[m.id] || String(m.generation || 1);
                     const main = isMainBloodline(code);
-                    const shownName = displayMemberName(m, members);
-                    const spouseShown = m.spouse ? displayRelatedName(m.spouse, members) : "";
-                    const parentShown = parent ? displayMemberName(parent, members) : "";
+                    const shownName = displayMemberName(m);
+                    const spouseShown = String(m.spouse || "").trim();
+                    const parentShown = parent ? displayMemberName(parent) : "";
                     const codeLabel = formatLineageLabel(code);
+                    const roleLabel =
+                      role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
                     return (
                       <article
                         key={m.id}
-                        id={virtual ? undefined : `member-card-${m.id}`}
-                        className={`node glass ${active ? "active note-open" : ""} ${m.gender || ""} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""}`}
+                        id={empty ? undefined : `member-card-${m.id}`}
+                        className={`node glass ${active ? "active note-open" : ""} ${m.gender || ""} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
                         onClick={() => {
-                          if (!virtual) setFocusId(m.id);
+                          if (empty) {
+                            if (isAdmin) openFoundingSlot(role);
+                            return;
+                          }
+                          setFocusId(m.id);
                         }}
-                        title={virtual ? "Founding spouse" : "Click to read note"}
+                        title={
+                          empty
+                            ? isAdmin
+                              ? "Add founding ancestor"
+                              : "Empty slot"
+                            : "Click to read note"
+                        }
                       >
                         {parent && (
-                          <div
-                            className="stem"
-                            title={`Child of ${displayMemberName(parent, members)}`}
-                          />
+                          <div className="stem" title={`Child of ${displayMemberName(parent)}`} />
                         )}
-                        {role && (
-                          <p className="role-chip">{role === "pa" ? "Pa · father" : "Nu · mother"}</p>
-                        )}
+                        {role && <p className="role-chip">{roleLabel}</p>}
                         <p className="node-gen">
                           <span className="lineage-code">{codeLabel}</span>
                           <span>
                             {gen === 1
-                              ? "Root"
+                              ? "Ultimate root"
                               : `Dot ${generationFromLineage(code, m, members)}`}
                           </span>
                         </p>
-                        <h3>{shownName}</h3>
-                        <p className="muted">
-                          {gen === 1
-                            ? "Nu le pa"
-                            : m.branch || `AD · ${codeLabel}`}
-                        </p>
-                        {gen !== 1 && (
+                        {empty ? (
+                          <>
+                            <h3>Empty slot</h3>
+                            <p className="muted">
+                              {isAdmin ? "Add founding ancestor" : "Unassigned founding ancestor"}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <h3>{shownName}</h3>
+                            <p className="muted">
+                              {gen === 1
+                                ? roleLabel || "Founding couple"
+                                : m.branch || `AD · ${codeLabel}`}
+                            </p>
+                          </>
+                        )}
+                        {!empty && gen !== 1 && (
                           <dl>
                             <div>
                               <dt>Born</dt>
@@ -598,14 +634,14 @@ export default function App() {
                             )}
                           </dl>
                         )}
-                        {spouseShown && <p className="spouse">Spouse · {spouseShown}</p>}
-                        {parent && (
+                        {!empty && spouseShown && <p className="spouse">Spouse · {spouseShown}</p>}
+                        {!empty && parent && (
                           <p className="parent">
                             Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
                             {parentShown}
                           </p>
                         )}
-                        {kids.length > 0 && (
+                        {!empty && kids.length > 0 && (
                           <p className="kids">
                             {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
                             {kids
@@ -616,7 +652,14 @@ export default function App() {
                             {kids.length > 4 ? "…" : ""}
                           </p>
                         )}
-                        {isAdmin && !virtual && (
+                        {isAdmin && empty && (
+                          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                            <button className="link" onClick={() => openFoundingSlot(role)}>
+                              Add founding ancestor
+                            </button>
+                          </div>
+                        )}
+                        {isAdmin && !empty && (
                           <div className="card-actions" onClick={(e) => e.stopPropagation()}>
                             <button className="link" onClick={() => setMemberForm({ ...m })}>
                               Edit
@@ -744,7 +787,7 @@ function NoteReadMode({ member, parent, code, kids, lineage, members, onClose })
       <article className={`note-read glass ${member.gender || ""}`} onClick={(e) => e.stopPropagation()}>
         <header className="note-read-head">
           <p className="kicker">Read mode · {code}</p>
-          <h2 id="note-read-title">{displayMemberName(member, members)}</h2>
+          <h2 id="note-read-title">{displayMemberName(member)}</h2>
           <p className="muted">{member.branch || `AD · ${code}`}</p>
         </header>
         <dl className="note-read-meta">
@@ -761,7 +804,7 @@ function NoteReadMode({ member, parent, code, kids, lineage, members, onClose })
           {member.spouse && (
             <div>
               <dt>Spouse</dt>
-              <dd>{displayRelatedName(member.spouse, members)}</dd>
+              <dd>{member.spouse}</dd>
             </div>
           )}
           {parent && (
@@ -769,7 +812,7 @@ function NoteReadMode({ member, parent, code, kids, lineage, members, onClose })
               <dt>Child of</dt>
               <dd>
                 {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
-                {displayMemberName(parent, members)}
+                {displayMemberName(parent)}
               </dd>
             </div>
           )}

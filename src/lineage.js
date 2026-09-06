@@ -39,9 +39,9 @@ export function isMainBloodline(code) {
   return c === "1.4" || c.startsWith("1.4.");
 }
 
-/** Display names for the Dot 1 founding couple (nu le pa). Stored records are unchanged. */
-export const ROOT_FATHER_PLACEHOLDER = "JOHN";
-export const ROOT_MOTHER_PLACEHOLDER = "JANE";
+/** Canonical Dot 1 founding couple. Empty slots never display dummy names. */
+export const ROOT_FATHER_NAME = "PU TAI LIO";
+export const ROOT_MOTHER_NAME = "PI TUAK TLEM";
 
 export function formatLineageLabel(code) {
   const c = String(code || "").replace(/\.+$/, "");
@@ -53,67 +53,36 @@ function nameOf(m) {
   return String(m?.name || "").replace(/\s+/g, " ").trim();
 }
 
-function namesMatch(a, b) {
-  const x = String(a || "").replace(/\s+/g, " ").trim().toLowerCase();
-  const y = String(b || "").replace(/\s+/g, " ").trim().toLowerCase();
-  return Boolean(x && y && x === y);
-}
-
 export function isPuTaiLio(m) {
   const n = nameOf(m);
-  return (
-    /pu\s*tai\s*lio/i.test(n) ||
-    /tai\s*lio/i.test(n) ||
-    /^john$/i.test(n)
-  );
+  return /pu\s*tai\s*lio/i.test(n) || /tai\s*lio/i.test(n);
 }
 
 export function isPiTuakTlem(m) {
   const n = nameOf(m);
-  return (
-    /pi\s*tuak\s*tlem/i.test(n) ||
-    /tuak\s*tlem/i.test(n) ||
-    /^jane$/i.test(n)
-  );
+  return /pi\s*tuak\s*tlem/i.test(n) || /tuak\s*tlem/i.test(n);
 }
 
-export function displayMemberName(member, members = []) {
-  if (!member) return "";
-  const root = findPrimaryRoot(members);
-  const spouse = findRootSpouse(members, root);
-  if (root && member.id === root.id) return ROOT_FATHER_PLACEHOLDER;
-  if (spouse && member.id === spouse.id) return ROOT_MOTHER_PLACEHOLDER;
-  if (String(member.id || "").endsWith("-spouse-placeholder")) return ROOT_MOTHER_PLACEHOLDER;
-  return member.name || "";
+export function displayMemberName(member) {
+  return nameOf(member);
 }
 
-export function displayRelatedName(name, members = []) {
-  const raw = String(name || "").trim();
-  if (!raw) return "";
-  const root = findPrimaryRoot(members);
-  const spouse = findRootSpouse(members, root);
-  if (root && namesMatch(raw, root.name)) return ROOT_FATHER_PLACEHOLDER;
-  if (spouse && namesMatch(raw, spouse.name)) return ROOT_MOTHER_PLACEHOLDER;
-  if (root && namesMatch(raw, root.spouse) && !spouse) return ROOT_MOTHER_PLACEHOLDER;
-  if (/pu\s*tai\s*lio/i.test(raw) || /^john$/i.test(raw)) return ROOT_FATHER_PLACEHOLDER;
-  if (/pi\s*tuak\s*tlem/i.test(raw) || /^jane$/i.test(raw)) return ROOT_MOTHER_PLACEHOLDER;
-  return raw;
-}
-
-export function virtualRootSpouse(root) {
-  if (!root) return null;
+export function emptyRootSlot(role, partnerName = "") {
+  const isFather = role === "pa";
   return {
-    id: `${root.id}-spouse-placeholder`,
-    name: ROOT_MOTHER_PLACEHOLDER,
+    id: `empty-root-${role}`,
+    name: "",
     generation: 1,
     parentId: "",
-    spouse: ROOT_FATHER_PLACEHOLDER,
+    spouse: partnerName || "",
     dob: "",
     dod: "",
-    gender: "female",
-    branch: "Dot 1 · Nu",
+    gender: isFather ? "male" : "female",
+    branch: isFather ? "Father · Root" : "Mother · Root",
     bio: "",
+    emptySlot: true,
     virtual: true,
+    role,
   };
 }
 
