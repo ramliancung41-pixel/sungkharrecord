@@ -39,29 +39,104 @@ export function isMainBloodline(code) {
   return c === "1.4" || c.startsWith("1.4.");
 }
 
+function nameOf(m) {
+  return String(m?.name || "").replace(/\s+/g, " ").trim();
+}
+
+export function isPuTaiLio(m) {
+  return /pu\s*tai\s*lio/i.test(nameOf(m)) || /tai\s*lio/i.test(nameOf(m));
+}
+
+export function isPiTuakTlem(m) {
+  return /pi\s*tuak\s*tlem/i.test(nameOf(m)) || /tuak\s*tlem/i.test(nameOf(m));
+}
+
 function childrenOf(members, parentId) {
   return members.filter((m) => m.parentId === parentId).sort(byBirthOrder);
 }
 
 function isSpouseOf(a, b) {
   if (!a || !b || a.id === b.id) return false;
-  const an = String(a.name || "").trim().toLowerCase();
-  const bn = String(b.name || "").trim().toLowerCase();
+  if (isPuTaiLio(a) && isPiTuakTlem(b)) return true;
+  if (isPiTuakTlem(a) && isPuTaiLio(b)) return true;
+  const an = nameOf(a).toLowerCase();
+  const bn = nameOf(b).toLowerCase();
   const as = String(a.spouse || "").trim().toLowerCase();
   const bs = String(b.spouse || "").trim().toLowerCase();
   if (!an || !bn) return false;
   return as === bn || bs === an;
 }
 
-/**
- * Hierarchical IDs from parentage + birth order.
- * Founding head of Dot 1 is "1". Children are 1.1, 1.2, 1.3, 1.4…
- * Grandchildren nest: 1.4.1, 1.4.1.1, 1.4.1.2…
- */
-export function computeLineageCodes(members = []) {
+export function findPrimaryRoot(members = []) {
   const list = members.filter(Boolean);
+  return (
+    list.find(isPuTaiLio) ||
+    list.find((m) => childrenOf(list, m.id).length > 0 && (Number(m.generation) || 1) === 1) ||
+    list.find((m) => childrenOf(list, m.id).length > 0) ||
+    list[0] ||
+    null
+  );
+}
+
+export function findRootSpouse(members = [], root) {
+  const list = members.filter(Boolean);
+  if (!root) return null;
+  return (
+    list.find((m) => m.id !== root.id && isPiTuakTlem(m)) ||
+    list.find((m) => m.id !== root.id && isSpouseOf(m, root) && !m.parentId) ||
+    null
+  );
+}
+
+/**
+ * Dot 1 holds only Pu Tai Lio and Pi Tuak Tlem.
+ * Anyone else without a parent is attached as a child of Pu Tai Lio (Dot 2+).
+ */
+export function normalizeRootHousehold(members = []) {
+  const list = members.filter(Boolean).map((m) => ({ ...m }));
+  const root = findPrimaryRoot(list);
+  if (!root) return list;
+  const spouse = findRootSpouse(list, root);
+  const rootIds = new Set([root.id, spouse?.id].filter(Boolean));
+  const byId = Object.fromEntries(list.map((m) => [m.id, m]));
+
+  for (const m of list) {
+    if (m.id === root.id) {
+      m.parentId = "";
+      m.generation = 1;
+      m.spouse = m.spouse || (spouse ? spouse.name : m.spouse);
+      m.branch = "Dot 1 · Root";
+      continue;
+    }
+    if (spouse && m.id === spouse.id) {
+      m.parentId = "";
+      m.generation = 1;
+      m.spouse = m.spouse || root.name;
+      m.branch = "Dot 1 · Root spouse";
+      continue;
+    }
+    const parent = m.parentId ? byId[m.parentId] : null;
+    const parentIsRootCouple = Boolean(parent && rootIds.has(parent.id));
+    const wasDot1 = Number(m.generation) === 1;
+    if (!parent || parentIsRootCouple && spouse && m.parentId === spouse.id) {
+      m.parentId = root.id;
+    }
+    if (m.parentId === root.id) {
+      m.generation = 2;
+    } else if (wasDot1) {
+      m.generation = Math.max(2, (Number(parent?.generation) || 1) + 1);
+    }
+  }
+
+  return list;
+}
+
+export function computeLineageCodes(members = []) {
+  const list = normalizeRootHousehold(members);
   const byId = Object.fromEntries(list.map((m) => [m.id, m]));
   const codes = {};
+  const root = findPrimaryRoot(list);
+  const spouse = findRootSpouse(list, root);
 
   function assign(id, code) {
     if (!id || codes[id]) return;
@@ -71,42 +146,8 @@ export function computeLineageCodes(members = []) {
     });
   }
 
-  const unresolvedParent = (m) => !m.parentId || !byId[m.parentId];
-  const roots = list.filter(unresolvedParent);
-  const heads = roots
-    .filter((m) => {
-      const hasKids = childrenOf(list, m.id).length > 0;
-      if (hasKids) return true;
-      const pairedToHead = roots.some(
-        (other) => isSpouseOf(m, other) && childrenOf(list, other.id).length > 0
-      );
-      return !pairedToHead;
-    })
-    .sort((a, b) => {
-      const ga = Number(a.generation) || 1;
-      const gb = Number(b.generation) || 1;
-      if (ga !== gb) return ga - gb;
-      return byBirthOrder(a, b);
-    });
-
-  const primary =
-    heads.find((m) => (Number(m.generation) || 1) === 1 && childrenOf(list, m.id).length > 0) ||
-    heads.find((m) => childrenOf(list, m.id).length > 0) ||
-    heads[0];
-
-  if (primary) assign(primary.id, "1");
-
-  for (const head of heads) {
-    if (codes[head.id]) continue;
-    const g = String(Math.max(1, Number(head.generation) || 1));
-    let code = g;
-    let n = 1;
-    while (Object.values(codes).includes(code)) {
-      n += 1;
-      code = `${g}.${n}`;
-    }
-    assign(head.id, code);
-  }
+  if (root) assign(root.id, "1");
+  if (spouse) codes[spouse.id] = "1";
 
   for (const m of list) {
     if (codes[m.id]) continue;
@@ -116,12 +157,30 @@ export function computeLineageCodes(members = []) {
       assign(m.id, `${codes[m.parentId]}.${index + 1}`);
       continue;
     }
-    codes[m.id] = String(Math.max(1, Number(m.generation) || 1));
+    if (m.parentId && byId[m.parentId] && !codes[m.parentId] && root) {
+      m.parentId = root.id;
+      continue;
+    }
+    codes[m.id] = "1.1";
+  }
+
+  if (root) {
+    childrenOf(list, root.id).forEach((child, index) => {
+      if (!String(codes[child.id] || "").startsWith("1.")) {
+        assign(child.id, `1.${index + 1}`);
+      }
+    });
   }
 
   return codes;
 }
 
-export function generationFromLineage(code) {
-  return Math.max(1, lineageDepth(code));
+export function generationFromLineage(code, member, members = []) {
+  const root = findPrimaryRoot(members);
+  const spouse = findRootSpouse(members, root);
+  if (member && root && member.id === root.id) return 1;
+  if (member && spouse && member.id === spouse.id) return 1;
+  const depth = lineageDepth(code);
+  if (depth <= 1) return 2;
+  return depth;
 }

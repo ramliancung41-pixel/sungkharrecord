@@ -176,7 +176,7 @@ export default function App() {
     }
     for (const m of members) {
       const code = lineage[m.id];
-      const g = generationFromLineage(code) || Number(m.generation) || 1;
+      const g = generationFromLineage(code, m, members);
       if (!map.has(g)) map.set(g, []);
       map.get(g).push(m);
     }
@@ -430,9 +430,9 @@ export default function App() {
           )}
         </div>
         <p className="hint">
-          Dots are generation containers. Descendants are numbered by birth under their parent:
-          1.1, 1.2 Pu Than Kep, 1.3 Pu Siang Hluan, 1.4 Pu Kip Thuan. His firstborn is 1.4.1 Pu Bual
-          Tiam; the next house is 1.4.1.1, 1.4.1.2, and so on. Click a card for its note.
+          Dot 1 holds only Pu Tai Lio and Pi Tuak Tlem. All of their children live in Dot 2 as 1.1,
+          1.2 Pu Than Kep, 1.3 Pu Siang Hluan, 1.4 Pu Kip Thuan. His firstborn is 1.4.1 Pu Bual Tiam;
+          the next house is 1.4.1.1, 1.4.1.2, and so on.
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => (
@@ -512,7 +512,7 @@ export default function App() {
                       {parent && <div className="stem" title={`Child of ${parent.name}`} />}
                       <p className="node-gen">
                         <span className="lineage-code">{code}</span>
-                        <span>Dot {generationFromLineage(code) || m.generation}</span>
+                        <span>Dot {generationFromLineage(code, m, members)}</span>
                       </p>
                       <h3>{m.name}</h3>
                       <p className="muted">{m.branch || `AD · ${code}`}</p>
