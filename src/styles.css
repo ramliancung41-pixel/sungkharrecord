@@ -551,47 +551,93 @@ textarea.hero-edit-input.lede {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.node-note {
-  margin-top: 0.75rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 14px;
-  border: 1px solid rgba(212, 180, 90, 0.35);
-  background:
-    linear-gradient(180deg, rgba(212, 180, 90, 0.12), rgba(8, 10, 16, 0.55));
-  animation: noteIn 0.22s ease;
+.note-read-back {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  background: rgba(4, 5, 8, 0.78);
+  backdrop-filter: blur(10px);
+  animation: fade 0.22s ease;
 }
 
-.node-note-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
+.note-read {
+  width: min(860px, 100%);
+  max-height: min(90vh, 920px);
+  overflow: auto;
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+  border-radius: 22px;
+  animation: rise 0.28s ease;
 }
 
-.node-note-head span {
+.note-read.male {
+  border-top: 3px solid var(--male);
+}
+
+.note-read.female {
+  border-top: 3px solid var(--female);
+}
+
+.note-read-head h2 {
+  margin: 0.15rem 0 0.2rem;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+}
+
+.note-read-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem 1.2rem;
+  margin: 1.2rem 0 0;
+}
+
+.note-read-meta dt {
   font-size: 0.68rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--gold);
 }
 
-.node-note p {
-  margin: 0;
+.note-read-meta dd {
+  margin: 0.2rem 0 0;
   color: var(--ink);
-  font-size: 0.92rem;
-  line-height: 1.55;
 }
 
-@keyframes noteIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.note-read-body {
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.8rem);
+  border-radius: 18px;
+  border: 1px solid rgba(212, 180, 90, 0.28);
+  background:
+    linear-gradient(180deg, rgba(212, 180, 90, 0.1), rgba(8, 10, 16, 0.45));
+}
+
+.note-read-label {
+  margin: 0 0 0.7rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.note-read-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.05rem, 1.6vw, 1.22rem);
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.note-read-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.note-read-close {
+  min-width: 8.5rem;
+  padding: 0.7rem 1.4rem;
 }
 
 .node.male {

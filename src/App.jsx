@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useData } from "./DataContext";
 import MediaDrawer from "./AdminMediaPanel";
@@ -158,6 +158,18 @@ export default function App() {
   const [originDraft, setOriginDraft] = useState(data.chronicle);
   const [focusId, setFocusId] = useState("");
   const [mediaOpen, setMediaOpen] = useState(false);
+
+  const closeNote = useCallback(() => {
+    const id = focusId;
+    setFocusId("");
+    if (!id) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById(`member-card-${id}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  }, [focusId]);
 
   useEffect(() => {
     setOriginDraft(data.chronicle);
@@ -505,9 +517,10 @@ export default function App() {
                   return (
                     <article
                       key={m.id}
+                      id={`member-card-${m.id}`}
                       className={`node glass ${active ? "active note-open" : ""} ${m.gender} ${main ? "main-line" : ""}`}
-                      onClick={() => setFocusId((id) => (id === m.id ? "" : m.id))}
-                      title={active ? "Click to hide note" : "Click to show note"}
+                      onClick={() => setFocusId(m.id)}
+                      title="Click to read note"
                     >
                       {parent && <div className="stem" title={`Child of ${parent.name}`} />}
                       <p className="node-gen">
@@ -541,21 +554,6 @@ export default function App() {
                           {kids.map((k) => lineage[k.id]).filter(Boolean).slice(0, 4).join(", ")}
                           {kids.length > 4 ? "…" : ""}
                         </p>
-                      )}
-                      {active && (
-                        <div className="node-note" onClick={(e) => e.stopPropagation()}>
-                          <div className="node-note-head">
-                            <span>Note · {code}</span>
-                            <button
-                              type="button"
-                              className="link"
-                              onClick={() => setFocusId("")}
-                            >
-                              Close
-                            </button>
-                          </div>
-                          <p>{m.bio?.trim() ? m.bio : "No note recorded for this member yet."}</p>
-                        </div>
                       )}
                       {isAdmin && (
                         <div className="card-actions" onClick={(e) => e.stopPropagation()}>
@@ -601,6 +599,17 @@ export default function App() {
 
       <MediaDrawer open={mediaOpen} onClose={() => setMediaOpen(false)} />
 
+      {focusId && byId[focusId] && (
+        <NoteReadMode
+          member={byId[focusId]}
+          parent={byId[byId[focusId].parentId]}
+          code={lineage[focusId] || String(byId[focusId].generation || 1)}
+          kids={childrenOf(focusId)}
+          lineage={lineage}
+          onClose={closeNote}
+        />
+      )}
+
       {loginOpen && !isAdmin && (
         <LoginModal
           onClose={() => setLoginOpen(false)}
@@ -639,6 +648,93 @@ export default function App() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function NoteReadMode({ member, parent, code, kids, lineage, onClose }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const note = member.bio?.trim()
+    ? member.bio
+    : "No note recorded for this member yet.";
+
+  return (
+    <div
+      className="note-read-back"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="note-read-title"
+    >
+      <article className={`note-read glass ${member.gender || ""}`} onClick={(e) => e.stopPropagation()}>
+        <header className="note-read-head">
+          <p className="kicker">Read mode · {code}</p>
+          <h2 id="note-read-title">{member.name}</h2>
+          <p className="muted">{member.branch || `AD · ${code}`}</p>
+        </header>
+        <dl className="note-read-meta">
+          <div>
+            <dt>Born</dt>
+            <dd>{formatDate(member.dob)}</dd>
+          </div>
+          {member.dod && (
+            <div>
+              <dt>Departed</dt>
+              <dd>{formatDate(member.dod)}</dd>
+            </div>
+          )}
+          {member.spouse && (
+            <div>
+              <dt>Spouse</dt>
+              <dd>{member.spouse}</dd>
+            </div>
+          )}
+          {parent && (
+            <div>
+              <dt>Child of</dt>
+              <dd>
+                {lineage[parent.id] ? `${lineage[parent.id]} ` : ""}
+                {parent.name}
+              </dd>
+            </div>
+          )}
+          {kids.length > 0 && (
+            <div>
+              <dt>Descendants</dt>
+              <dd>
+                {kids.length} · next{" "}
+                {kids
+                  .map((k) => lineage[k.id])
+                  .filter(Boolean)
+                  .slice(0, 6)
+                  .join(", ")}
+                {kids.length > 6 ? "…" : ""}
+              </dd>
+            </div>
+          )}
+        </dl>
+        <div className="note-read-body">
+          <p className="note-read-label">Note</p>
+          <p className="note-read-text">{note}</p>
+        </div>
+        <div className="note-read-actions">
+          <button type="button" className="btn gold note-read-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </article>
     </div>
   );
 }
