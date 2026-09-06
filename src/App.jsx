@@ -6,8 +6,14 @@ import MediaGallery from "./MediaGallery";
 import {
   compareLineageCodes,
   computeLineageCodes,
+  displayMemberName,
+  displayRelatedName,
+  findPrimaryRoot,
+  findRootSpouse,
+  formatLineageLabel,
   generationFromLineage,
   isMainBloodline,
+  virtualRootSpouse,
 } from "./lineage";
 
 function formatDate(value) {
@@ -208,6 +214,27 @@ export default function App() {
     return members
       .filter((m) => m.parentId === id)
       .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
+  }
+
+  function rootCoupleCards(people) {
+    const root = findPrimaryRoot(members);
+    const spouseMember = findRootSpouse(members, root);
+    const cards = [];
+    if (root) {
+      cards.push({
+        member: people.find((p) => p.id === root.id) || root,
+        role: "pa",
+      });
+    }
+    if (spouseMember) {
+      cards.push({
+        member: people.find((p) => p.id === spouseMember.id) || spouseMember,
+        role: "nu",
+      });
+    } else if (root) {
+      cards.push({ member: virtualRootSpouse(root), role: "nu", virtual: true });
+    }
+    return cards;
   }
 
   function openNewMember(generation = 1, parentId = "") {
@@ -442,20 +469,22 @@ export default function App() {
           )}
         </div>
         <p className="hint">
-          Dot 1 holds only Pu Tai Lio and Pi Tuak Tlem. All of their children live in Dot 2 as 1.1,
-          1.2 Pu Than Kep, 1.3 Pu Siang Hluan, 1.4 Pu Kip Thuan. His firstborn is 1.4.1 Pu Bual Tiam;
-          the next house is 1.4.1.1, 1.4.1.2, and so on.
+          Generation <strong>1.</strong> holds only the founding couple (nu le pa), shown as JOHN and
+          JANE. Their children begin in generation <strong>2.</strong> as 1.1, 1.2, 1.3… Further
+          descendants continue 1.1.1, 1.2.1, and so on in later Dots.
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => (
             <section key={gen} id={`dot-${gen}`} className="gen-row glass dot-section">
               <div className="dot-section-head">
-                <div>
-                  <div className="dot-badge">Dot {gen}</div>
+                <div className="dot-mark">
+                  <p className="dot-mark-num">{gen}.</p>
                   <p className="muted dot-count">
-                    {people.length
-                      ? `${people.length} family member${people.length === 1 ? "" : "s"}`
-                      : "Empty generation — add the first family"}
+                    {gen === 1
+                      ? "Nu le pa · founding couple"
+                      : people.length
+                        ? `${people.length} family member${people.length === 1 ? "" : "s"}`
+                        : "Empty generation — add the first family"}
                   </p>
                 </div>
                 {isAdmin && (
@@ -493,10 +522,10 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <div className="nodes">
-                {!people.length && (
+              <div className={`nodes ${gen === 1 ? "root-couple" : ""}`}>
+                {!people.length && gen !== 1 && (
                   <div className="dot-empty">
-                    <p>No members in Dot {gen} yet.</p>
+                    <p>No members in generation {gen}. yet.</p>
                     {isAdmin && (
                       <button
                         className="link"
@@ -508,72 +537,105 @@ export default function App() {
                     )}
                   </div>
                 )}
-                {people.map((m) => {
-                  const parent = byId[m.parentId];
-                  const kids = childrenOf(m.id);
-                  const active = focusId === m.id;
-                  const code = lineage[m.id] || String(m.generation || 1);
-                  const main = isMainBloodline(code);
-                  return (
-                    <article
-                      key={m.id}
-                      id={`member-card-${m.id}`}
-                      className={`node glass ${active ? "active note-open" : ""} ${m.gender} ${main ? "main-line" : ""}`}
-                      onClick={() => setFocusId(m.id)}
-                      title="Click to read note"
-                    >
-                      {parent && <div className="stem" title={`Child of ${parent.name}`} />}
-                      <p className="node-gen">
-                        <span className="lineage-code">{code}</span>
-                        <span>Dot {generationFromLineage(code, m, members)}</span>
-                      </p>
-                      <h3>{m.name}</h3>
-                      <p className="muted">{m.branch || `AD · ${code}`}</p>
-                      <dl>
-                        <div>
-                          <dt>Born</dt>
-                          <dd>{formatDate(m.dob)}</dd>
-                        </div>
-                        {m.dod && (
-                          <div>
-                            <dt>Departed</dt>
-                            <dd>{formatDate(m.dod)}</dd>
+                {(gen === 1 ? rootCoupleCards(people) : people.map((member) => ({ member }))).map(
+                  (entry) => {
+                    const m = entry.member;
+                    const role = entry.role;
+                    const virtual = Boolean(entry.virtual || m.virtual);
+                    const parent = byId[m.parentId];
+                    const kids = virtual ? [] : childrenOf(m.id);
+                    const active = !virtual && focusId === m.id;
+                    const code = virtual ? "1" : lineage[m.id] || String(m.generation || 1);
+                    const main = isMainBloodline(code);
+                    const shownName = displayMemberName(m, members);
+                    const spouseShown = m.spouse ? displayRelatedName(m.spouse, members) : "";
+                    const parentShown = parent ? displayMemberName(parent, members) : "";
+                    const codeLabel = formatLineageLabel(code);
+                    return (
+                      <article
+                        key={m.id}
+                        id={virtual ? undefined : `member-card-${m.id}`}
+                        className={`node glass ${active ? "active note-open" : ""} ${m.gender || ""} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""}`}
+                        onClick={() => {
+                          if (!virtual) setFocusId(m.id);
+                        }}
+                        title={virtual ? "Founding spouse" : "Click to read note"}
+                      >
+                        {parent && (
+                          <div
+                            className="stem"
+                            title={`Child of ${displayMemberName(parent, members)}`}
+                          />
+                        )}
+                        {role && (
+                          <p className="role-chip">{role === "pa" ? "Pa · father" : "Nu · mother"}</p>
+                        )}
+                        <p className="node-gen">
+                          <span className="lineage-code">{codeLabel}</span>
+                          <span>
+                            {gen === 1
+                              ? "Root"
+                              : `Dot ${generationFromLineage(code, m, members)}`}
+                          </span>
+                        </p>
+                        <h3>{shownName}</h3>
+                        <p className="muted">
+                          {gen === 1
+                            ? "Nu le pa"
+                            : m.branch || `AD · ${codeLabel}`}
+                        </p>
+                        {gen !== 1 && (
+                          <dl>
+                            <div>
+                              <dt>Born</dt>
+                              <dd>{formatDate(m.dob)}</dd>
+                            </div>
+                            {m.dod && (
+                              <div>
+                                <dt>Departed</dt>
+                                <dd>{formatDate(m.dod)}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
+                        {spouseShown && <p className="spouse">Spouse · {spouseShown}</p>}
+                        {parent && (
+                          <p className="parent">
+                            Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
+                            {parentShown}
+                          </p>
+                        )}
+                        {kids.length > 0 && (
+                          <p className="kids">
+                            {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
+                            {kids
+                              .map((k) => formatLineageLabel(lineage[k.id]))
+                              .filter(Boolean)
+                              .slice(0, 4)
+                              .join(", ")}
+                            {kids.length > 4 ? "…" : ""}
+                          </p>
+                        )}
+                        {isAdmin && !virtual && (
+                          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                            <button className="link" onClick={() => setMemberForm({ ...m })}>
+                              Edit
+                            </button>
+                            <button
+                              className="link"
+                              onClick={() => openNewMember(Number(m.generation) + 1, m.id)}
+                            >
+                              Add child
+                            </button>
+                            <button className="link danger" onClick={() => deleteMember(m.id)}>
+                              Delete
+                            </button>
                           </div>
                         )}
-                      </dl>
-                      {m.spouse && <p className="spouse">Spouse · {m.spouse}</p>}
-                      {parent && (
-                        <p className="parent">
-                          Child of {lineage[parent.id] ? `${lineage[parent.id]} ` : ""}
-                          {parent.name}
-                        </p>
-                      )}
-                      {kids.length > 0 && (
-                        <p className="kids">
-                          {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
-                          {kids.map((k) => lineage[k.id]).filter(Boolean).slice(0, 4).join(", ")}
-                          {kids.length > 4 ? "…" : ""}
-                        </p>
-                      )}
-                      {isAdmin && (
-                        <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-                          <button className="link" onClick={() => setMemberForm({ ...m })}>
-                            Edit
-                          </button>
-                          <button
-                            className="link"
-                            onClick={() => openNewMember(Number(m.generation) + 1, m.id)}
-                          >
-                            Add child
-                          </button>
-                          <button className="link danger" onClick={() => deleteMember(m.id)}>
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
+                      </article>
+                    );
+                  }
+                )}
               </div>
             </section>
           ))}
@@ -603,9 +665,10 @@ export default function App() {
         <NoteReadMode
           member={byId[focusId]}
           parent={byId[byId[focusId].parentId]}
-          code={lineage[focusId] || String(byId[focusId].generation || 1)}
+          code={formatLineageLabel(lineage[focusId] || String(byId[focusId].generation || 1))}
           kids={childrenOf(focusId)}
           lineage={lineage}
+          members={members}
           onClose={closeNote}
         />
       )}
@@ -652,7 +715,7 @@ export default function App() {
   );
 }
 
-function NoteReadMode({ member, parent, code, kids, lineage, onClose }) {
+function NoteReadMode({ member, parent, code, kids, lineage, members, onClose }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -681,7 +744,7 @@ function NoteReadMode({ member, parent, code, kids, lineage, onClose }) {
       <article className={`note-read glass ${member.gender || ""}`} onClick={(e) => e.stopPropagation()}>
         <header className="note-read-head">
           <p className="kicker">Read mode · {code}</p>
-          <h2 id="note-read-title">{member.name}</h2>
+          <h2 id="note-read-title">{displayMemberName(member, members)}</h2>
           <p className="muted">{member.branch || `AD · ${code}`}</p>
         </header>
         <dl className="note-read-meta">
@@ -698,15 +761,15 @@ function NoteReadMode({ member, parent, code, kids, lineage, onClose }) {
           {member.spouse && (
             <div>
               <dt>Spouse</dt>
-              <dd>{member.spouse}</dd>
+              <dd>{displayRelatedName(member.spouse, members)}</dd>
             </div>
           )}
           {parent && (
             <div>
               <dt>Child of</dt>
               <dd>
-                {lineage[parent.id] ? `${lineage[parent.id]} ` : ""}
-                {parent.name}
+                {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
+                {displayMemberName(parent, members)}
               </dd>
             </div>
           )}
@@ -872,7 +935,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
         <p className="kicker">Lineage</p>
         <h2>{form.isNew ? "Add family member" : "Edit family member"}</h2>
         <p className="lineage-preview">
-          Hierarchical number · <strong>{previewCode}</strong>
+          Hierarchical number · <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
         </p>
         <div className="grid-2">
           <label>

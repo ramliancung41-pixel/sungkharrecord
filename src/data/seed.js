@@ -6,19 +6,19 @@ export const seedData = {
     subtitle:
       "From the first hearth to the branches that still carry the name — a record of origin, generation, and descent.",
     origin:
-      "Dot 1 holds only the founding couple: Pu Tai Lio and Pi Tuak Tlem.\n\nEvery child of Pu Tai Lio belongs in Dot 2, numbered by birth: 1.1, 1.2 Pu Than Kep, 1.3 Pu Siang Hluan, 1.4 Pu Kip Thuan — our direct bloodline grandfather.\n\nHis firstborn is 1.4.1 Pu Bual Tiam. That house continues as 1.4.1.1, 1.4.1.2, and so on.",
+      "Dot 1 holds only the founding couple (nu le pa), shown as JOHN and JANE.\n\nEvery child belongs in Dot 2, numbered by birth: 1.1, 1.2, 1.3, 1.4.\n\nFurther generations continue as 1.4.1, 1.4.1.1, and so on.",
   },
   timeline: [
     {
       id: "t1",
-      year: "Dot 1",
-      title: "Pu Tai Lio and Pi Tuak Tlem",
-      body: "The absolute root. No children live in this Dot — only the founding husband and wife.",
+      year: "1.",
+      title: "JOHN and JANE",
+      body: "The absolute root. No children live in this Dot — only the founding couple (nu le pa).",
     },
     {
       id: "t2",
       year: "Dot 2",
-      title: "Children of Pu Tai Lio",
+      title: "Children of JOHN and JANE",
       body: "Direct descendants are placed in Dot 2 with hierarchical numbers 1.1, 1.2, 1.3, 1.4.",
     },
     {
@@ -37,27 +37,27 @@ export const seedData = {
   members: [
     {
       id: "m-root",
-      name: "Pu Tai Lio",
+      name: "JOHN",
       generation: 1,
       parentId: "",
-      spouse: "Pi Tuak Tlem",
+      spouse: "JANE",
       dob: "1860-01-01",
       dod: "",
       gender: "male",
       branch: "Dot 1 · Root",
-      bio: "Primary root ancestor. Dot 1 with his wife Pi Tuak Tlem only. All descendants begin in Dot 2.",
+      bio: "Primary root ancestor (pa). Dot 1 with his wife JANE only. All descendants begin in Dot 2.",
     },
     {
       id: "m-wife",
-      name: "Pi Tuak Tlem",
+      name: "JANE",
       generation: 1,
       parentId: "",
-      spouse: "Pu Tai Lio",
+      spouse: "JOHN",
       dob: "1864-01-01",
       dod: "",
       gender: "female",
       branch: "Dot 1 · Root spouse",
-      bio: "Wife of Pu Tai Lio. Resides in Dot 1 with him alone.",
+      bio: "Wife of JOHN (nu). Resides in Dot 1 with him alone.",
     },
     {
       id: "m-11",
@@ -69,7 +69,7 @@ export const seedData = {
       dod: "",
       gender: "male",
       branch: "Dot 2 · 1.1",
-      bio: "1.1 Pu Hniar Hmun — first child of Pu Tai Lio. Lives in Dot 2, not Dot 1.",
+      bio: "1.1 Pu Hniar Hmun — first child of JOHN. Lives in Dot 2, not Dot 1.",
     },
     {
       id: "m-12",
@@ -81,7 +81,7 @@ export const seedData = {
       dod: "",
       gender: "male",
       branch: "Dot 2 · 1.2",
-      bio: "1.2 Pu Than Kep — child of Pu Tai Lio.",
+      bio: "1.2 Pu Than Kep — child of JOHN.",
     },
     {
       id: "m-13",
@@ -93,7 +93,7 @@ export const seedData = {
       dod: "",
       gender: "male",
       branch: "Dot 2 · 1.3",
-      bio: "1.3 Pu Siang Hluan — child of Pu Tai Lio.",
+      bio: "1.3 Pu Siang Hluan — child of JOHN.",
     },
     {
       id: "m-14",
@@ -105,7 +105,7 @@ export const seedData = {
       dod: "",
       gender: "male",
       branch: "Main line · 1.4",
-      bio: "1.4 Pu Kip Thuan — direct bloodline grandfather. Child of Pu Tai Lio, Dot 2.",
+      bio: "1.4 Pu Kip Thuan — direct bloodline grandfather. Child of JOHN, Dot 2.",
     },
     {
       id: "m-141",

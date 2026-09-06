@@ -458,6 +458,11 @@ textarea.hero-edit-input.lede {
   font-size: 0.92rem;
 }
 
+.hint strong {
+  color: var(--gold-2);
+  font-weight: 600;
+}
+
 .tree-wrap {
   display: grid;
   gap: 1.2rem;
@@ -526,10 +531,59 @@ textarea.hero-edit-input.lede {
   font-size: 0.7rem;
 }
 
+.dot-mark {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.dot-mark-num {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  line-height: 0.9;
+  color: var(--gold-2);
+  letter-spacing: 0.04em;
+}
+
 .nodes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
+}
+
+.nodes.root-couple {
+  grid-template-columns: repeat(2, minmax(220px, 300px));
+  justify-content: center;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.role-chip {
+  margin: 0 0 0.45rem;
+  width: fit-content;
+  border: 1px solid rgba(212, 180, 90, 0.4);
+  color: var(--gold);
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.node.root-pa,
+.node.root-nu {
+  text-align: center;
+}
+
+.node.root-pa .role-chip,
+.node.root-nu .role-chip,
+.node.root-pa .node-gen,
+.node.root-nu .node-gen,
+.node.root-pa .muted,
+.node.root-nu .muted,
+.node.root-pa .spouse {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .node {
@@ -1322,7 +1376,8 @@ code {
   }
   .grid-2,
   .facts,
-  .reg-row {
+  .reg-row,
+  .nodes.root-couple {
     grid-template-columns: 1fr;
   }
   .media-card,
