@@ -608,6 +608,40 @@ textarea.hero-edit-input.lede {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: baseline;
+}
+
+.lineage-code {
+  font-family: Outfit, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  color: var(--gold-2);
+  border: 1px solid rgba(212, 180, 90, 0.4);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.node.main-line {
+  border-color: rgba(212, 180, 90, 0.42);
+}
+
+.node.main-line .lineage-code {
+  background: rgba(212, 180, 90, 0.16);
+}
+
+.lineage-preview {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.lineage-preview strong {
+  color: var(--gold-2);
+  font-family: Outfit, system-ui, sans-serif;
+  letter-spacing: 0.06em;
 }
 
 .node h3 {

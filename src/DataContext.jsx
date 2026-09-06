@@ -3,6 +3,7 @@ import { get, onValue, ref, update } from "firebase/database";
 import { db, isFirebaseConfigured } from "./firebase";
 import { seedData } from "./data/seed";
 import { useAuth } from "./AuthContext";
+import { computeLineageCodes, generationFromLineage } from "./lineage";
 
 const DataContext = createContext(null);
 
@@ -156,9 +157,22 @@ export function DataProvider({ children }) {
         const idx = members.findIndex((m) => m.id === member.id);
         if (idx >= 0) members[idx] = member;
         else members.push(member);
+        const codes = computeLineageCodes(members);
+        const synced = members.map((m) => {
+          const code = codes[m.id];
+          const generation = generationFromLineage(code) || Number(m.generation) || 1;
+          return {
+            ...m,
+            generation,
+            lineage: code || m.lineage || "",
+          };
+        });
         const gen = Number(member.generation) || 1;
-        const dots = normalizeDots([...normalizeDots(data.dots, members), gen], members);
-        await persist({ ...data, members, dots });
+        const dots = normalizeDots(
+          [...normalizeDots(data.dots, synced), gen, ...synced.map((m) => m.generation)],
+          synced
+        );
+        await persist({ ...data, members: synced, dots });
       },
       async deleteMember(id) {
         const members = data.members

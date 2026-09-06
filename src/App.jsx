@@ -3,6 +3,12 @@ import { useAuth } from "./AuthContext";
 import { useData } from "./DataContext";
 import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
+import {
+  compareLineageCodes,
+  computeLineageCodes,
+  generationFromLineage,
+  isMainBloodline,
+} from "./lineage";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -159,6 +165,7 @@ export default function App() {
 
   const members = data.members || [];
   const byId = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
+  const lineage = useMemo(() => computeLineageCodes(members), [members]);
 
   const generations = useMemo(() => {
     const map = new Map();
@@ -168,16 +175,45 @@ export default function App() {
       if (Number.isFinite(g) && g > 0) map.set(g, []);
     }
     for (const m of members) {
-      const g = Number(m.generation) || 1;
+      const code = lineage[m.id];
+      const g = generationFromLineage(code) || Number(m.generation) || 1;
       if (!map.has(g)) map.set(g, []);
       map.get(g).push(m);
     }
     if (map.size === 0) map.set(1, []);
+    for (const [g, people] of map) {
+      people.sort((a, b) => {
+        const cmp = compareLineageCodes(lineage[a.id], lineage[b.id]);
+        if (cmp !== 0) return cmp;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+      map.set(g, people);
+    }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [members, data.dots]);
+  }, [members, data.dots, lineage]);
 
   function childrenOf(id) {
-    return members.filter((m) => m.parentId === id);
+    return members
+      .filter((m) => m.parentId === id)
+      .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
+  }
+
+  function openNewMember(generation = 1, parentId = "") {
+    const parent = byId[parentId];
+    const parentCode = parent ? lineage[parent.id] : "";
+    setMemberForm({
+      id: newId("m"),
+      name: "",
+      generation: parent ? (Number(parent.generation) || 1) + 1 : generation,
+      parentId,
+      spouse: "",
+      dob: "",
+      dod: "",
+      gender: "male",
+      branch: parentCode ? `AD · ${parentCode}` : "Dot 1 · Root",
+      bio: "",
+      isNew: true,
+    });
   }
 
   async function handleAddDot() {
@@ -187,22 +223,6 @@ export default function App() {
         behavior: "smooth",
         block: "center",
       });
-    });
-  }
-
-  function openNewMember(generation = 1, parentId = "") {
-    setMemberForm({
-      id: newId("m"),
-      name: "",
-      generation,
-      parentId,
-      spouse: "",
-      dob: "",
-      dod: "",
-      gender: "male",
-      branch: parentId ? `AD — ${byId[parentId]?.name || "branch"}` : "Root house",
-      bio: "",
-      isNew: true,
     });
   }
 
@@ -410,8 +430,9 @@ export default function App() {
           )}
         </div>
         <p className="hint">
-          Each Dot is a generation container. Admins can add a new Dot, then add family members
-          directly into that Dot. Select a card for birth details and AD branch.
+          Dots are generation containers. Descendants are numbered by birth under their parent:
+          1.1, 1.2 Pu Than Kep, 1.3 Pu Siang Hluan, 1.4 Pu Kip Thuan. His firstborn is 1.4.1 Pu Bual
+          Tiam; the next house is 1.4.1.1, 1.4.1.2, and so on. Click a card for its note.
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => (
@@ -479,17 +500,22 @@ export default function App() {
                   const parent = byId[m.parentId];
                   const kids = childrenOf(m.id);
                   const active = focusId === m.id;
+                  const code = lineage[m.id] || String(m.generation || 1);
+                  const main = isMainBloodline(code);
                   return (
                     <article
                       key={m.id}
-                      className={`node glass ${active ? "active note-open" : ""} ${m.gender}`}
+                      className={`node glass ${active ? "active note-open" : ""} ${m.gender} ${main ? "main-line" : ""}`}
                       onClick={() => setFocusId((id) => (id === m.id ? "" : m.id))}
                       title={active ? "Click to hide note" : "Click to show note"}
                     >
                       {parent && <div className="stem" title={`Child of ${parent.name}`} />}
-                      <p className="node-gen">Dot {m.generation}</p>
+                      <p className="node-gen">
+                        <span className="lineage-code">{code}</span>
+                        <span>Dot {generationFromLineage(code) || m.generation}</span>
+                      </p>
                       <h3>{m.name}</h3>
-                      <p className="muted">{m.branch || "Unmarked branch"}</p>
+                      <p className="muted">{m.branch || `AD · ${code}`}</p>
                       <dl>
                         <div>
                           <dt>Born</dt>
@@ -503,14 +529,23 @@ export default function App() {
                         )}
                       </dl>
                       {m.spouse && <p className="spouse">Spouse · {m.spouse}</p>}
-                      {parent && <p className="parent">Child of {parent.name}</p>}
+                      {parent && (
+                        <p className="parent">
+                          Child of {lineage[parent.id] ? `${lineage[parent.id]} ` : ""}
+                          {parent.name}
+                        </p>
+                      )}
                       {kids.length > 0 && (
-                        <p className="kids">{kids.length} descendant{kids.length === 1 ? "" : "s"}</p>
+                        <p className="kids">
+                          {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
+                          {kids.map((k) => lineage[k.id]).filter(Boolean).slice(0, 4).join(", ")}
+                          {kids.length > 4 ? "…" : ""}
+                        </p>
                       )}
                       {active && (
                         <div className="node-note" onClick={(e) => e.stopPropagation()}>
                           <div className="node-note-head">
-                            <span>Note</span>
+                            <span>Note · {code}</span>
                             <button
                               type="button"
                               className="link"
@@ -578,6 +613,7 @@ export default function App() {
       {memberForm && isAdmin && (
         <MemberModal
           members={members}
+          lineage={lineage}
           value={memberForm}
           onClose={() => setMemberForm(null)}
           onSave={async (next) => {
@@ -710,9 +746,14 @@ function GoogleMark() {
   );
 }
 
-function MemberModal({ value, onClose, onSave, members }) {
+function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
   const [form, setForm] = useState(value);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const previewMembers = [
+    ...members.filter((m) => m.id !== form.id),
+    { ...form, generation: Number(form.generation) || 1 },
+  ];
+  const previewCode = computeLineageCodes(previewMembers)[form.id] || "—";
 
   return (
     <div className="modal-back" onClick={onClose}>
@@ -721,11 +762,22 @@ function MemberModal({ value, onClose, onSave, members }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ ...form, generation: Number(form.generation) || 1 });
+          const parent = members.find((m) => m.id === form.parentId);
+          const generation = parent
+            ? (Number(parent.generation) || 1) + 1
+            : Number(form.generation) || 1;
+          onSave({
+            ...form,
+            generation,
+            branch: form.branch || (previewCode !== "—" ? `AD · ${previewCode}` : ""),
+          });
         }}
       >
         <p className="kicker">Lineage</p>
         <h2>{form.isNew ? "Add family member" : "Edit family member"}</h2>
+        <p className="lineage-preview">
+          Hierarchical number · <strong>{previewCode}</strong>
+        </p>
         <div className="grid-2">
           <label>
             Full name
@@ -743,13 +795,28 @@ function MemberModal({ value, onClose, onSave, members }) {
           </label>
           <label>
             Parent
-            <select value={form.parentId} onChange={(e) => set("parentId", e.target.value)}>
+            <select
+              value={form.parentId}
+              onChange={(e) => {
+                const parentId = e.target.value;
+                const parent = members.find((m) => m.id === parentId);
+                setForm((f) => ({
+                  ...f,
+                  parentId,
+                  generation: parent ? (Number(parent.generation) || 1) + 1 : f.generation,
+                  branch: parent
+                    ? `AD · ${lineage[parent.id] || parent.name}`
+                    : "Dot 1 · Root",
+                }));
+              }}
+            >
               <option value="">None (founding / Dot 1)</option>
               {members
                 .filter((m) => m.id !== form.id)
+                .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]))
                 .map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} · Dot {m.generation}
+                    {lineage[m.id] || `Dot ${m.generation}`} · {m.name}
                   </option>
                 ))}
             </select>
