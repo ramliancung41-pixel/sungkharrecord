@@ -39,9 +39,9 @@ export function isMainBloodline(code) {
   return c === "1.4" || c.startsWith("1.4.");
 }
 
-/** Canonical Dot 1 founding couple. Empty slots never display dummy names. */
-export const ROOT_FATHER_NAME = "PU TAI LIO";
-export const ROOT_MOTHER_NAME = "PI TUAK TLEM";
+/** Canonical Dot 1 founding couple. */
+export const ROOT_FATHER_NAME = "Pu Tai Lio";
+export const ROOT_MOTHER_NAME = "Pi Tuak Tlem";
 
 export function formatLineageLabel(code) {
   const c = String(code || "").replace(/\.+$/, "");
@@ -83,6 +83,21 @@ export function emptyRootSlot(role, partnerName = "") {
     emptySlot: true,
     virtual: true,
     role,
+  };
+}
+
+export function defaultRootMother(father) {
+  return {
+    id: "m-wife",
+    name: ROOT_MOTHER_NAME,
+    generation: 1,
+    parentId: "",
+    spouse: nameOf(father) || ROOT_FATHER_NAME,
+    dob: "",
+    dod: "",
+    gender: "female",
+    branch: "Mother · Root",
+    bio: "",
   };
 }
 
@@ -131,23 +146,34 @@ export function normalizeRootHousehold(members = []) {
   const list = members.filter(Boolean).map((m) => ({ ...m }));
   const root = findPrimaryRoot(list);
   if (!root) return list;
-  const spouse = findRootSpouse(list, root);
-  const rootIds = new Set([root.id, spouse?.id].filter(Boolean));
+
+  let spouse = findRootSpouse(list, root);
+  if (!spouse) {
+    const created = defaultRootMother(root);
+    const clash = list.find((m) => m.id === created.id && !isPiTuakTlem(m));
+    if (clash) created.id = `${created.id}-${root.id}`;
+    list.push(created);
+    spouse = created;
+  }
+
+  const rootIds = new Set([root.id, spouse.id].filter(Boolean));
   const byId = Object.fromEntries(list.map((m) => [m.id, m]));
 
   for (const m of list) {
     if (m.id === root.id) {
       m.parentId = "";
       m.generation = 1;
-      m.spouse = m.spouse || (spouse ? spouse.name : m.spouse);
-      m.branch = "Dot 1 · Root";
+      m.spouse = nameOf(spouse) || ROOT_MOTHER_NAME;
+      m.branch = "Father · Root";
       continue;
     }
-    if (spouse && m.id === spouse.id) {
+    if (m.id === spouse.id) {
       m.parentId = "";
       m.generation = 1;
-      m.spouse = m.spouse || root.name;
-      m.branch = "Dot 1 · Root spouse";
+      if (!nameOf(m)) m.name = ROOT_MOTHER_NAME;
+      m.spouse = nameOf(root) || ROOT_FATHER_NAME;
+      m.gender = m.gender || "female";
+      m.branch = "Mother · Root";
       continue;
     }
     const parent = m.parentId ? byId[m.parentId] : null;

@@ -6,6 +6,7 @@ import MediaGallery from "./MediaGallery";
 import {
   compareLineageCodes,
   computeLineageCodes,
+  defaultRootMother,
   displayMemberName,
   emptyRootSlot,
   findPrimaryRoot,
@@ -217,7 +218,7 @@ export default function App() {
 
   function rootCoupleCards(people) {
     const root = findPrimaryRoot(members);
-    const spouseMember = findRootSpouse(members, root);
+    const spouseMember = findRootSpouse(members, root) || (root ? defaultRootMother(root) : null);
     return [
       {
         member: root

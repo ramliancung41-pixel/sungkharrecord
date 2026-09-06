@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { get, onValue, ref, update } from "firebase/database";
 import { db, isFirebaseConfigured } from "./firebase";
 import { seedData } from "./data/seed";
 import { useAuth } from "./AuthContext";
-import { computeLineageCodes, generationFromLineage, normalizeRootHousehold } from "./lineage";
+import { computeLineageCodes, findPrimaryRoot, findRootSpouse, generationFromLineage, normalizeRootHousehold } from "./lineage";
 
 const DataContext = createContext(null);
 
@@ -107,6 +107,8 @@ export function DataProvider({ children }) {
     };
   }, [isAdmin]);
 
+  const wroteRootMother = useRef(false);
+
   async function persist(next) {
     if (!isAdmin) return;
     const members = syncMembers(next.members || []);
@@ -126,6 +128,30 @@ export function DataProvider({ children }) {
       dots: payload.dots,
     });
   }
+
+  useEffect(() => {
+    if (!isAdmin || !live || !isFirebaseConfigured || wroteRootMother.current) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await get(ref(db, "sungkhar/members"));
+        if (cancelled) return;
+        const raw = toList(snap.val());
+        if (findRootSpouse(raw, findPrimaryRoot(raw))) {
+          wroteRootMother.current = true;
+          return;
+        }
+        if (!findPrimaryRoot(data.members)) return;
+        wroteRootMother.current = true;
+        await persist({ ...data });
+      } catch {
+        wroteRootMother.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, live, data]);
 
   const value = useMemo(
     () => ({
