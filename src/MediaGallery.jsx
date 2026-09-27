@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMedia } from "./MediaContext";
+import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
 
 const TABS = [
   { id: "all", label: "All" },
@@ -336,12 +337,12 @@ export default function MediaGallery({ compact = false }) {
                 </a>
                 {isAdmin && (
                   <>
-                    <button className="link" type="button" onClick={() => startEdit(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="link danger"
-                      type="button"
+                    <IconBtn label="Edit" onClick={() => startEdit(item)}>
+                      <IconPencil />
+                    </IconBtn>
+                    <IconBtn
+                      label="Delete"
+                      danger
                       onClick={async () => {
                         if (!window.confirm(`Remove “${item.title}”?`)) return;
                         try {
@@ -353,8 +354,8 @@ export default function MediaGallery({ compact = false }) {
                         }
                       }}
                     >
-                      Delete
-                    </button>
+                      <IconTrash />
+                    </IconBtn>
                   </>
                 )}
               </div>

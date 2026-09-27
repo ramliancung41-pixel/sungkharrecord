@@ -5,6 +5,7 @@ import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import VirtualGrid from "./VirtualGrid";
+import { IconBtn, IconPencil, IconPlus, IconTrash } from "./uiIcons";
 import {
   compareLineageCodes,
   computeLineageCodes,
@@ -66,50 +67,6 @@ function normalizeGender(gender) {
   if (g === "pa") return "male";
   if (g === "female" || g === "male" || g === "other") return g;
   return "male";
-}
-
-function IconBtn({ label, danger = false, onClick, children }) {
-  return (
-    <button
-      type="button"
-      className={`icon-btn ${danger ? "danger" : ""}`}
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
-function IconPencil() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M4 17.3V20h2.7l8-8-2.7-2.7-8 8Zm14.7-8.4a.8.8 0 0 0 0-1.1l-2.5-2.5a.8.8 0 0 0-1.1 0l-1.8 1.8 3.6 3.6 1.8-1.8Z"
-      />
-    </svg>
-  );
-}
-
-function IconPlus() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-      <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z" />
-    </svg>
-  );
-}
-
-function IconTrash() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"
-      />
-    </svg>
-  );
 }
 
 function resolvedSpouseDob(member, members = []) {
@@ -722,15 +679,16 @@ export default function App() {
               <p>{ev.body}</p>
               {isAdmin && (
                 <div className="card-actions">
-                  <button className="link" onClick={() => setEventForm({ ...ev })}>
-                    Edit
-                  </button>
-                  <button
-                    className="link danger"
+                  <IconBtn label="Edit" onClick={() => setEventForm({ ...ev })}>
+                    <IconPencil />
+                  </IconBtn>
+                  <IconBtn
+                    label="Delete"
+                    danger
                     onClick={() => saveTimeline(data.timeline.filter((t) => t.id !== ev.id))}
                   >
-                    Delete
-                  </button>
+                    <IconTrash />
+                  </IconBtn>
                 </div>
               )}
             </li>
