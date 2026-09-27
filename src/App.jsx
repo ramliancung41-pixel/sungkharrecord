@@ -3,6 +3,8 @@ import { useAuth } from "./AuthContext";
 import { useData } from "./DataContext";
 import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
+import TreeSearchBar from "./TreeSearchBar";
+import VirtualGrid from "./VirtualGrid";
 import {
   compareLineageCodes,
   computeLineageCodes,
@@ -13,7 +15,10 @@ import {
   findRootSpouse,
   formatLineageLabel,
   generationFromLineage,
+  indexByParent,
   isMainBloodline,
+  memberMatchesQuery,
+  previewLineageCode,
 } from "./lineage";
 
 function formatDate(value) {
@@ -206,6 +211,11 @@ export default function App() {
   const [originDraft, setOriginDraft] = useState(data.chronicle);
   const [focusId, setFocusId] = useState("");
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [genFilter, setGenFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [openGens, setOpenGens] = useState(() => new Set([1, 2]));
 
   const closeNote = useCallback(() => {
     const id = focusId;
@@ -223,9 +233,35 @@ export default function App() {
     setOriginDraft(data.chronicle);
   }, [data.chronicle]);
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setQuery(queryInput), 160);
+    return () => window.clearTimeout(t);
+  }, [queryInput]);
+
   const members = data.members || [];
   const byId = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
   const lineage = useMemo(() => computeLineageCodes(members), [members]);
+  const childrenByParent = useMemo(() => indexByParent(members), [members]);
+
+  const filtering = Boolean(query.trim() || genFilter || branchFilter);
+
+  const matchedIds = useMemo(() => {
+    const ids = new Set();
+    for (const m of members) {
+      const code = lineage[m.id] || m.lineage || "";
+      if (memberMatchesQuery(m, code, query, genFilter, branchFilter)) ids.add(m.id);
+    }
+    return ids;
+  }, [members, lineage, query, genFilter, branchFilter]);
+
+  const branchOptions = useMemo(() => {
+    const set = new Set();
+    for (const m of members) {
+      const b = String(m.branch || m.relation || "").trim();
+      if (b) set.add(b);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [members]);
 
   const generations = useMemo(() => {
     const map = new Map();
@@ -237,6 +273,7 @@ export default function App() {
     for (const m of members) {
       const code = lineage[m.id];
       const g = generationFromLineage(code, m, members);
+      if (filtering && !matchedIds.has(m.id)) continue;
       if (!map.has(g)) map.set(g, []);
       map.get(g).push(m);
     }
@@ -249,13 +286,22 @@ export default function App() {
       });
       map.set(g, people);
     }
-    return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [members, data.dots, lineage]);
+    return [...map.entries()]
+      .filter(([, people]) => !filtering || people.length > 0)
+      .sort((a, b) => a[0] - b[0]);
+  }, [members, data.dots, lineage, filtering, matchedIds]);
 
   function childrenOf(id) {
-    return members
-      .filter((m) => m.parentId === id)
-      .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
+    return childrenByParent.get(id) || [];
+  }
+
+  function toggleGen(gen) {
+    setOpenGens((prev) => {
+      const next = new Set(prev);
+      if (next.has(gen)) next.delete(gen);
+      else next.add(gen);
+      return next;
+    });
   }
 
   function rootCoupleCards(people) {
@@ -330,6 +376,128 @@ export default function App() {
     });
   }
 
+  function renderMemberEntry(entry, gen) {
+    const m = entry.member;
+    const role = entry.role;
+    const empty = Boolean(entry.empty || m.emptySlot || m.virtual);
+    const parent = empty ? null : byId[m.parentId];
+    const kids = empty ? [] : childrenOf(m.id);
+    const active = !empty && focusId === m.id;
+    const code = empty ? "1" : lineage[m.id] || String(m.generation || 1);
+    const main = isMainBloodline(code);
+    const shownName = displayMemberName(m);
+    const spouseShown = String(m.spouse || "").trim();
+    const parentShown = parent ? displayMemberName(parent) : "";
+    const codeLabel = formatLineageLabel(code);
+    const roleLabel = role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
+    const relationLabel = String(m.relation || "").trim();
+    return (
+      <article
+        key={m.id}
+        id={empty ? undefined : `member-card-${m.id}`}
+        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
+        onClick={() => {
+          if (empty) {
+            if (isAdmin) openFoundingSlot(role);
+            return;
+          }
+          setFocusId(m.id);
+        }}
+        title={
+          empty ? (isAdmin ? "Add founding ancestor" : "Empty slot") : "Click to read note"
+        }
+      >
+        {parent && <div className="stem" title={`Child of ${displayMemberName(parent)}`} />}
+        {role && <p className="role-chip">{roleLabel}</p>}
+        <p className="node-gen">
+          <span className="lineage-code">{codeLabel}</span>
+          <span>
+            {gen === 1 ? "Ultimate root" : `Dot ${generationFromLineage(code, m, members)}`}
+          </span>
+        </p>
+        {empty ? (
+          <>
+            <h3>Empty slot</h3>
+            <p className="muted">
+              {isAdmin ? "Add founding ancestor" : "Unassigned founding ancestor"}
+            </p>
+          </>
+        ) : (
+          <>
+            <h3>{shownName}</h3>
+            <p className="muted">
+              {relationLabel ||
+                (gen === 1 ? roleLabel || "Founding couple" : m.branch || `AD · ${codeLabel}`)}
+            </p>
+          </>
+        )}
+        {!empty && (
+          <dl>
+            <div>
+              <dt>Born</dt>
+              <dd>{formatDate(m.dob)}</dd>
+            </div>
+            {m.dod && (
+              <div>
+                <dt>Departed</dt>
+                <dd>{formatDate(m.dod)}</dd>
+              </div>
+            )}
+            {spouseShown && (
+              <div>
+                <dt>Spouse</dt>
+                <dd>{spouseShown}</dd>
+              </div>
+            )}
+            {spouseShown && (
+              <div>
+                <dt>Spouse born</dt>
+                <dd>{formatDate(resolvedSpouseDob(m, members))}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        {!empty && parent && (
+          <p className="parent">
+            Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
+            {parentShown}
+          </p>
+        )}
+        {!empty && kids.length > 0 && (
+          <p className="kids">
+            {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
+            {kids
+              .map((k) => formatLineageLabel(lineage[k.id]))
+              .filter(Boolean)
+              .slice(0, 4)
+              .join(", ")}
+            {kids.length > 4 ? "…" : ""}
+          </p>
+        )}
+        {isAdmin && empty && (
+          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+            <button className="link" onClick={() => openFoundingSlot(role)}>
+              Add founding ancestor
+            </button>
+          </div>
+        )}
+        {isAdmin && !empty && (
+          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+            <button className="link" onClick={() => setMemberForm({ ...m })}>
+              Edit
+            </button>
+            <button className="link" onClick={() => openNewMember(Number(m.generation) + 1, m.id)}>
+              Add child
+            </button>
+            <button className="link danger" onClick={() => deleteMember(m.id)}>
+              Delete
+            </button>
+          </div>
+        )}
+      </article>
+    );
+  }
+
   return (
     <div className="app">
       <div className="orb orb-a" />
@@ -366,6 +534,19 @@ export default function App() {
           )}
         </div>
       </header>
+
+      <TreeSearchBar
+        query={queryInput}
+        onQuery={setQueryInput}
+        generation={genFilter}
+        onGeneration={setGenFilter}
+        branch={branchFilter}
+        onBranch={setBranchFilter}
+        generations={generations.map(([g]) => g)}
+        branches={branchOptions}
+        matchCount={filtering ? matchedIds.size : members.length}
+        totalCount={members.length}
+      />
 
       <section className="hero" id="origin">
         <p className="kicker">{data.chronicle.kicker}</p>
@@ -539,209 +720,98 @@ export default function App() {
           1.1, 1.2, 1.3… Empty root slots stay blank until an Admin adds the ancestor.
         </p>
         <div className="tree-wrap">
-          {generations.map(([gen, people]) => (
-            <section key={gen} id={`dot-${gen}`} className="gen-row glass dot-section">
-              <div className="dot-section-head">
-                <div className="dot-mark">
-                  <p className="dot-mark-num">{gen}.</p>
-                  <p className="muted dot-count">
-                    {gen === 1
-                      ? "Founding couple · numbered 1."
-                      : people.length
-                        ? `${people.length} family member${people.length === 1 ? "" : "s"}`
-                        : "Empty generation — add the first family"}
-                  </p>
-                </div>
-                {isAdmin && (
-                  <div className="dot-section-actions">
-                    <button
-                      className="btn gold"
-                      type="button"
-                      onClick={() =>
-                        openNewMember(
-                          gen,
-                          gen > 1
-                            ? members.find((m) => Number(m.generation) === gen - 1)?.id || ""
-                            : ""
-                        )
-                      }
-                    >
-                      Add Family / Add Member to this Dot
-                    </button>
-                    {!people.length && (
+          {generations.map(([gen, people]) => {
+            const expanded = filtering || openGens.has(gen) || gen === 1;
+            const entries =
+              gen === 1 ? rootCoupleCards(people) : people.map((member) => ({ member }));
+            return (
+              <section key={gen} id={`dot-${gen}`} className="gen-row glass dot-section">
+                <div className="dot-section-head">
+                  <button
+                    type="button"
+                    className="dot-toggle"
+                    onClick={() => toggleGen(gen)}
+                    aria-expanded={expanded}
+                  >
+                    <div className="dot-mark">
+                      <p className="dot-mark-num">{gen}.</p>
+                      <p className="muted dot-count">
+                        {gen === 1
+                          ? "Founding couple · numbered 1."
+                          : people.length
+                            ? `${people.length} family member${people.length === 1 ? "" : "s"}`
+                            : "Empty generation — add the first family"}
+                      </p>
+                    </div>
+                    <span className="dot-toggle-label">{expanded ? "Hide" : "Show"}</span>
+                  </button>
+                  {isAdmin && (
+                    <div className="dot-section-actions">
                       <button
-                        className="btn ghost danger-btn"
+                        className="btn gold"
                         type="button"
-                        onClick={async () => {
-                          if (!window.confirm(`Delete empty Dot ${gen}?`)) return;
-                          try {
-                            await deleteDot(gen);
-                          } catch (err) {
-                            window.alert(err.message || "Could not delete Dot.");
-                          }
-                        }}
-                      >
-                        Delete Dot
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className={`nodes ${gen === 1 ? "root-couple" : ""}`}>
-                {!people.length && gen !== 1 && (
-                  <div className="dot-empty">
-                    <p>No members in generation {gen}. yet.</p>
-                    {isAdmin && (
-                      <button
-                        className="link"
-                        type="button"
-                        onClick={() => openNewMember(gen, "")}
-                      >
-                        Add the first member here
-                      </button>
-                    )}
-                  </div>
-                )}
-                {(gen === 1 ? rootCoupleCards(people) : people.map((member) => ({ member }))).map(
-                  (entry) => {
-                    const m = entry.member;
-                    const role = entry.role;
-                    const empty = Boolean(entry.empty || m.emptySlot || m.virtual);
-                    const parent = empty ? null : byId[m.parentId];
-                    const kids = empty ? [] : childrenOf(m.id);
-                    const active = !empty && focusId === m.id;
-                    const code = empty ? "1" : lineage[m.id] || String(m.generation || 1);
-                    const main = isMainBloodline(code);
-                    const shownName = displayMemberName(m);
-                    const spouseShown = String(m.spouse || "").trim();
-                    const parentShown = parent ? displayMemberName(parent) : "";
-                    const codeLabel = formatLineageLabel(code);
-                    const roleLabel =
-                      role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
-                    const relationLabel = String(m.relation || "").trim();
-                    return (
-                      <article
-                        key={m.id}
-                        id={empty ? undefined : `member-card-${m.id}`}
-                        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
-                        onClick={() => {
-                          if (empty) {
-                            if (isAdmin) openFoundingSlot(role);
-                            return;
-                          }
-                          setFocusId(m.id);
-                        }}
-                        title={
-                          empty
-                            ? isAdmin
-                              ? "Add founding ancestor"
-                              : "Empty slot"
-                            : "Click to read note"
+                        onClick={() =>
+                          openNewMember(
+                            gen,
+                            gen > 1
+                              ? members.find((m) => Number(m.generation) === gen - 1)?.id || ""
+                              : ""
+                          )
                         }
                       >
-                        {parent && (
-                          <div className="stem" title={`Child of ${displayMemberName(parent)}`} />
-                        )}
-                        {role && <p className="role-chip">{roleLabel}</p>}
-                        <p className="node-gen">
-                          <span className="lineage-code">{codeLabel}</span>
-                          <span>
-                            {gen === 1
-                              ? "Ultimate root"
-                              : `Dot ${generationFromLineage(code, m, members)}`}
-                          </span>
-                        </p>
-                        {empty ? (
-                          <>
-                            <h3>Empty slot</h3>
-                            <p className="muted">
-                              {isAdmin ? "Add founding ancestor" : "Unassigned founding ancestor"}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <h3>{shownName}</h3>
-                            <p className="muted">
-                              {relationLabel ||
-                                (gen === 1
-                                  ? roleLabel || "Founding couple"
-                                  : m.branch || `AD · ${codeLabel}`)}
-                            </p>
-                          </>
-                        )}
-                        {!empty && (
-                          <dl>
-                            <div>
-                              <dt>Born</dt>
-                              <dd>{formatDate(m.dob)}</dd>
-                            </div>
-                            {m.dod && (
-                              <div>
-                                <dt>Departed</dt>
-                                <dd>{formatDate(m.dod)}</dd>
-                              </div>
-                            )}
-                            {spouseShown && (
-                              <div>
-                                <dt>Spouse</dt>
-                                <dd>{spouseShown}</dd>
-                              </div>
-                            )}
-                            {spouseShown && (
-                              <div>
-                                <dt>Spouse born</dt>
-                                <dd>{formatDate(resolvedSpouseDob(m, members))}</dd>
-                              </div>
-                            )}
-                          </dl>
-                        )}
-                        {!empty && parent && (
-                          <p className="parent">
-                            Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
-                            {parentShown}
-                          </p>
-                        )}
-                        {!empty && kids.length > 0 && (
-                          <p className="kids">
-                            {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
-                            {kids
-                              .map((k) => formatLineageLabel(lineage[k.id]))
-                              .filter(Boolean)
-                              .slice(0, 4)
-                              .join(", ")}
-                            {kids.length > 4 ? "…" : ""}
-                          </p>
-                        )}
-                        {isAdmin && empty && (
-                          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-                            <button className="link" onClick={() => openFoundingSlot(role)}>
-                              Add founding ancestor
-                            </button>
-                          </div>
-                        )}
-                        {isAdmin && !empty && (
-                          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-                            <button className="link" onClick={() => setMemberForm({ ...m })}>
-                              Edit
-                            </button>
+                        Add Family / Add Member to this Dot
+                      </button>
+                      {!people.length && (
+                        <button
+                          className="btn ghost danger-btn"
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(`Delete empty Dot ${gen}?`)) return;
+                            try {
+                              await deleteDot(gen);
+                            } catch (err) {
+                              window.alert(err.message || "Could not delete Dot.");
+                            }
+                          }}
+                        >
+                          Delete Dot
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {expanded && (
+                  gen === 1 ? (
+                    <div className="nodes root-couple">
+                      {entries.map((entry) => renderMemberEntry(entry, gen))}
+                    </div>
+                  ) : (
+                    <>
+                      {!people.length && (
+                        <div className="dot-empty">
+                          <p>No members in generation {gen}. yet.</p>
+                          {isAdmin && (
                             <button
                               className="link"
-                              onClick={() => openNewMember(Number(m.generation) + 1, m.id)}
+                              type="button"
+                              onClick={() => openNewMember(gen, "")}
                             >
-                              Add child
+                              Add the first member here
                             </button>
-                            <button className="link danger" onClick={() => deleteMember(m.id)}>
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </article>
-                    );
-                  }
+                          )}
+                        </div>
+                      )}
+                      <VirtualGrid
+                        items={entries}
+                        className=""
+                        renderItem={(entry) => renderMemberEntry(entry, gen)}
+                      />
+                    </>
+                  )
                 )}
-              </div>
-            </section>
-          ))}
+              </section>
+            );
+          })}
         </div>
       </section>
 
@@ -1035,7 +1105,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
     ...members.filter((m) => m.id !== form.id),
     { ...form, generation: Number(form.generation) || 1 },
   ];
-  const previewCode = computeLineageCodes(previewMembers)[form.id] || "—";
+  const previewCode = previewLineageCode(members, form) || computeLineageCodes(previewMembers)[form.id] || "—";
   const relationSelectValue = customRelation
     ? "__custom__"
     : RELATION_CHOICES.includes(form.relation || "")
@@ -1069,7 +1139,8 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
         <p className="kicker">Lineage</p>
         <h2>{form.isNew ? "Add family member" : "Edit family member"}</h2>
         <p className="lineage-preview">
-          Hierarchical number · <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
+          Assigned automatically · <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
+          <span className="muted"> from parent and birth date</span>
         </p>
         <div className="grid-2">
           <label>
@@ -1082,6 +1153,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
               type="number"
               min="1"
               value={form.generation}
+              readOnly={Boolean(form.parentId)}
               onChange={(e) => set("generation", e.target.value)}
               required
             />

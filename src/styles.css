@@ -463,6 +463,63 @@ textarea.hero-edit-input.lede {
   font-weight: 600;
 }
 
+.tree-search {
+  position: sticky;
+  top: 0.55rem;
+  z-index: 25;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(110px, 0.45fr) minmax(140px, 0.7fr) auto;
+  gap: 0.65rem 0.85rem;
+  align-items: end;
+  padding: 0.85rem 1rem;
+  margin: 0.85rem 0 0.35rem;
+}
+
+.tree-search-field {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.tree-search-field span {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.tree-search-count {
+  margin: 0 0 0.15rem;
+  font-size: 0.82rem;
+}
+
+.virtual-grid-scroller {
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.dot-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.dot-toggle-label {
+  color: var(--gold);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .tree-wrap {
   display: grid;
   gap: 1.2rem;
@@ -1392,6 +1449,7 @@ code {
   .nav nav {
     display: none;
   }
+  .tree-search,
   .grid-2,
   .facts,
   .reg-row,

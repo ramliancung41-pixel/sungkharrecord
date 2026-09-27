@@ -33,7 +33,7 @@ export function normalizeDots(dots, members = []) {
 
 function syncMembers(members = []) {
   const household = normalizeRootHousehold(members);
-  const codes = computeLineageCodes(household);
+  const codes = computeLineageCodes(household, true);
   return household.map((m) => ({
     ...m,
     generation: generationFromLineage(codes[m.id], m, household),

@@ -10,6 +10,8 @@ function byBirthOrder(a, b) {
   return String(a.id || "").localeCompare(String(b.id || ""));
 }
 
+export { byBirthOrder };
+
 export function compareLineageCodes(a, b) {
   const pa = String(a || "")
     .split(".")
@@ -101,8 +103,21 @@ export function defaultRootMother(father) {
   };
 }
 
-function childrenOf(members, parentId) {
-  return members.filter((m) => m.parentId === parentId).sort(byBirthOrder);
+export function indexByParent(members = []) {
+  const map = new Map();
+  for (const m of members) {
+    if (!m) continue;
+    const pid = m.parentId || "";
+    const list = map.get(pid);
+    if (list) list.push(m);
+    else map.set(pid, [m]);
+  }
+  for (const list of map.values()) list.sort(byBirthOrder);
+  return map;
+}
+
+function childrenOfIndexed(index, parentId) {
+  return index.get(parentId) || [];
 }
 
 function isSpouseOf(a, b) {
@@ -119,10 +134,16 @@ function isSpouseOf(a, b) {
 
 export function findPrimaryRoot(members = []) {
   const list = members.filter(Boolean);
+  const named = list.find(isPuTaiLio);
+  if (named) return named;
+  const childCount = new Map();
+  for (const m of list) {
+    if (!m.parentId) continue;
+    childCount.set(m.parentId, (childCount.get(m.parentId) || 0) + 1);
+  }
   return (
-    list.find(isPuTaiLio) ||
-    list.find((m) => childrenOf(list, m.id).length > 0 && (Number(m.generation) || 1) === 1) ||
-    list.find((m) => childrenOf(list, m.id).length > 0) ||
+    list.find((m) => (childCount.get(m.id) || 0) > 0 && (Number(m.generation) || 1) === 1) ||
+    list.find((m) => (childCount.get(m.id) || 0) > 0) ||
     list[0] ||
     null
   );
@@ -138,15 +159,10 @@ export function findRootSpouse(members = [], root) {
   );
 }
 
-/**
- * Dot 1 holds only the founding couple (nu le pa).
- * Anyone else without a parent is attached as a child of the root father (Dot 2+).
- */
 export function normalizeRootHousehold(members = []) {
   const list = members.filter(Boolean).map((m) => ({ ...m }));
   const root = findPrimaryRoot(list);
   if (!root) return list;
-
   let spouse = findRootSpouse(list, root);
   if (!spouse) {
     const created = defaultRootMother(root);
@@ -155,10 +171,8 @@ export function normalizeRootHousehold(members = []) {
     list.push(created);
     spouse = created;
   }
-
   const rootIds = new Set([root.id, spouse.id].filter(Boolean));
   const byId = Object.fromEntries(list.map((m) => [m.id, m]));
-
   for (const m of list) {
     if (m.id === root.id) {
       m.parentId = "";
@@ -179,7 +193,7 @@ export function normalizeRootHousehold(members = []) {
     const parent = m.parentId ? byId[m.parentId] : null;
     const parentIsRootCouple = Boolean(parent && rootIds.has(parent.id));
     const wasDot1 = Number(m.generation) === 1;
-    if (!parent || parentIsRootCouple && spouse && m.parentId === spouse.id) {
+    if (!parent || (parentIsRootCouple && spouse && m.parentId === spouse.id)) {
       m.parentId = root.id;
     }
     if (m.parentId === root.id) {
@@ -188,32 +202,28 @@ export function normalizeRootHousehold(members = []) {
       m.generation = Math.max(2, (Number(parent?.generation) || 1) + 1);
     }
   }
-
   return list;
 }
 
-export function computeLineageCodes(members = []) {
-  const list = normalizeRootHousehold(members);
+function assignLineageCodes(list) {
   const byId = Object.fromEntries(list.map((m) => [m.id, m]));
+  const kids = indexByParent(list);
   const codes = {};
   const root = findPrimaryRoot(list);
   const spouse = findRootSpouse(list, root);
-
   function assign(id, code) {
     if (!id || codes[id]) return;
     codes[id] = code;
-    childrenOf(list, id).forEach((child, index) => {
+    childrenOfIndexed(kids, id).forEach((child, index) => {
       assign(child.id, `${code}.${index + 1}`);
     });
   }
-
   if (root) assign(root.id, "1");
   if (spouse) codes[spouse.id] = "1";
-
   for (const m of list) {
     if (codes[m.id]) continue;
     if (m.parentId && codes[m.parentId]) {
-      const siblings = childrenOf(list, m.parentId);
+      const siblings = childrenOfIndexed(kids, m.parentId);
       const index = siblings.findIndex((s) => s.id === m.id);
       assign(m.id, `${codes[m.parentId]}.${index + 1}`);
       continue;
@@ -224,16 +234,25 @@ export function computeLineageCodes(members = []) {
     }
     codes[m.id] = "1.1";
   }
-
   if (root) {
-    childrenOf(list, root.id).forEach((child, index) => {
+    childrenOfIndexed(kids, root.id).forEach((child, index) => {
       if (!String(codes[child.id] || "").startsWith("1.")) {
         assign(child.id, `1.${index + 1}`);
       }
     });
   }
+  return { codes, root, spouse, kids };
+}
 
-  return codes;
+export function computeLineageCodes(members = [], alreadyNormalized = false) {
+  const list = alreadyNormalized ? members.filter(Boolean) : normalizeRootHousehold(members);
+  return assignLineageCodes(list).codes;
+}
+
+export function previewLineageCode(members = [], draft) {
+  if (!draft?.id) return "";
+  const next = members.filter((m) => m && m.id !== draft.id).concat(draft);
+  return computeLineageCodes(next)[draft.id] || "";
 }
 
 export function generationFromLineage(code, member, members = []) {
@@ -244,4 +263,35 @@ export function generationFromLineage(code, member, members = []) {
   const depth = lineageDepth(code);
   if (depth <= 1) return 2;
   return depth;
+}
+
+export function generationFromCode(code, isRootCouple = false) {
+  if (isRootCouple) return 1;
+  const depth = lineageDepth(code);
+  return depth <= 1 ? 2 : depth;
+}
+
+export function memberMatchesQuery(member, code, query, generationFilter, branchFilter) {
+  if (generationFilter && String(member.generation) !== String(generationFilter)) return false;
+  if (branchFilter) {
+    const branch = String(member.branch || member.relation || "").toLowerCase();
+    if (branch !== String(branchFilter).toLowerCase()) return false;
+  }
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  const hay = [
+    member.name,
+    member.spouse,
+    member.branch,
+    member.relation,
+    member.bio,
+    code,
+    formatLineageLabel(code),
+    `dot ${member.generation}`,
+    member.generation,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
 }
