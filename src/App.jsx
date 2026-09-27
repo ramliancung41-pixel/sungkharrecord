@@ -5,7 +5,7 @@ import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import VirtualGrid from "./VirtualGrid";
-import { IconBtn, IconPencil, IconPlus, IconTrash } from "./uiIcons";
+import { IconBtn, IconNote, IconPencil, IconPlus, IconTrash } from "./uiIcons";
 import {
   compareLineageCodes,
   computeLineageCodes,
@@ -392,11 +392,12 @@ export default function App() {
     const codeLabel = formatLineageLabel(code);
     const roleLabel = role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
     const relationLabel = String(m.relation || "").trim();
+    const hasNote = !empty && Boolean(String(m.bio || "").trim());
     return (
       <article
         key={m.id}
         id={empty ? undefined : `member-card-${m.id}`}
-                        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
+        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""} ${hasNote ? "has-note" : ""}`}
         onClick={() => {
           if (empty) {
             if (isAdmin) openFoundingSlot(role);
@@ -405,9 +406,30 @@ export default function App() {
           setFocusId(m.id);
         }}
         title={
-          empty ? (isAdmin ? "Add founding ancestor" : "Empty slot") : "Click to read note"
+          empty
+            ? isAdmin
+              ? "Add founding ancestor"
+              : "Empty slot"
+            : hasNote
+              ? "Click to read note"
+              : "Click for member details"
         }
       >
+        {hasNote && (
+          <button
+            type="button"
+            className="note-badge"
+            aria-label={`Read note for ${shownName}`}
+            title="Read note"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFocusId(m.id);
+            }}
+          >
+            <IconNote />
+            <span>Note</span>
+          </button>
+        )}
         {parent && <div className="stem" title={`Child of ${displayMemberName(parent)}`} />}
         <header className="node-head">
           {role && <p className="role-chip">{roleLabel}</p>}

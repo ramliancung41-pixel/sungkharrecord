@@ -696,6 +696,62 @@ textarea.hero-edit-input.lede {
   font-weight: 500;
 }
 
+.node.has-note {
+  padding-right: 1.2rem;
+  border-color: rgba(212, 180, 90, 0.52);
+  box-shadow:
+    0 0 0 1px rgba(212, 180, 90, 0.16),
+    0 0 26px rgba(212, 180, 90, 0.16),
+    0 20px 50px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.node.has-note::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 22px 0 0 22px;
+  background: linear-gradient(180deg, var(--gold-2), var(--gold), rgba(212, 180, 90, 0.2));
+  box-shadow: 0 0 16px rgba(240, 212, 138, 0.7);
+  pointer-events: none;
+}
+
+.note-badge {
+  position: absolute;
+  top: 0.82rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin: 0;
+  padding: 0.2rem 0.52rem 0.2rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 180, 90, 0.52);
+  background: rgba(8, 10, 16, 0.78);
+  color: var(--gold-2);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(212, 180, 90, 0.22);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.note-badge:hover {
+  border-color: rgba(240, 212, 138, 0.9);
+  background: rgba(212, 180, 90, 0.18);
+  box-shadow: 0 0 18px rgba(212, 180, 90, 0.32);
+}
+
+.node.has-note .node-head {
+  padding-right: 4.2rem;
+}
+
 .node.note-open {
   z-index: 2;
 }
