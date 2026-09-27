@@ -271,27 +271,57 @@ export function generationFromCode(code, isRootCouple = false) {
   return depth <= 1 ? 2 : depth;
 }
 
+export function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function memberSearchHaystack(member, code) {
+  return normalizeSearchText(
+    [
+      displayMemberName(member),
+      member.name,
+      member.spouse,
+      member.branch,
+      member.relation,
+      member.bio,
+      member.gender,
+      code,
+      formatLineageLabel(code),
+      `dot ${member.generation}`,
+      member.generation,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+}
+
 export function memberMatchesQuery(member, code, query, generationFilter, branchFilter) {
   if (generationFilter && String(member.generation) !== String(generationFilter)) return false;
   if (branchFilter) {
     const branch = String(member.branch || member.relation || "").toLowerCase();
     if (branch !== String(branchFilter).toLowerCase()) return false;
   }
-  const q = String(query || "").trim().toLowerCase();
+  const q = normalizeSearchText(query);
   if (!q) return true;
-  const hay = [
-    member.name,
-    member.spouse,
-    member.branch,
-    member.relation,
-    member.bio,
-    code,
-    formatLineageLabel(code),
-    `dot ${member.generation}`,
-    member.generation,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return hay.includes(q);
+  const hay = memberSearchHaystack(member, code);
+  return q.split(" ").every((token) => hay.includes(token));
+}
+
+export function rankSearchHit(member, code, query) {
+  const q = normalizeSearchText(query);
+  const name = normalizeSearchText(displayMemberName(member));
+  if (!q) return 9;
+  if (name === q) return 0;
+  if (name.startsWith(q)) return 1;
+  if (name.split(" ").some((part) => part.startsWith(q))) return 2;
+  if (name.includes(q)) return 3;
+  const label = normalizeSearchText(formatLineageLabel(code));
+  if (label.startsWith(q) || label === q) return 4;
+  return 5;
 }

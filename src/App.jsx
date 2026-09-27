@@ -20,6 +20,7 @@ import {
   isMainBloodline,
   memberMatchesQuery,
   previewLineageCode,
+  rankSearchHit,
 } from "./lineage";
 
 function formatDate(value) {
@@ -213,10 +214,11 @@ export default function App() {
   const [focusId, setFocusId] = useState("");
   const [mediaOpen, setMediaOpen] = useState(false);
   const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");
   const [genFilter, setGenFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [openGens, setOpenGens] = useState(() => new Set([1, 2]));
+  const [seekId, setSeekId] = useState("");
+  const [highlightId, setHighlightId] = useState("");
 
   const closeNote = useCallback(() => {
     const id = focusId;
@@ -234,26 +236,51 @@ export default function App() {
     setOriginDraft(data.chronicle);
   }, [data.chronicle]);
 
-  useEffect(() => {
-    const t = window.setTimeout(() => setQuery(queryInput), 160);
-    return () => window.clearTimeout(t);
-  }, [queryInput]);
-
   const members = data.members || [];
   const byId = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
   const lineage = useMemo(() => computeLineageCodes(members), [members]);
   const childrenByParent = useMemo(() => indexByParent(members), [members]);
 
-  const filtering = Boolean(query.trim() || genFilter || branchFilter);
+  const filtering = Boolean(queryInput.trim() || genFilter || branchFilter);
 
   const matchedIds = useMemo(() => {
     const ids = new Set();
     for (const m of members) {
       const code = lineage[m.id] || m.lineage || "";
-      if (memberMatchesQuery(m, code, query, genFilter, branchFilter)) ids.add(m.id);
+      if (memberMatchesQuery(m, code, queryInput, genFilter, branchFilter)) ids.add(m.id);
     }
     return ids;
-  }, [members, lineage, query, genFilter, branchFilter]);
+  }, [members, lineage, queryInput, genFilter, branchFilter]);
+
+  const searchHits = useMemo(() => {
+    const q = String(queryInput || "").trim();
+    if (!q) return [];
+    return members
+      .filter((m) => !m.emptySlot && !m.virtual)
+      .map((m) => {
+        const code = lineage[m.id] || m.lineage || "";
+        return { ...m, code, lineage: code };
+      })
+      .filter((m) => memberMatchesQuery(m, m.code, queryInput, genFilter, branchFilter))
+      .sort((a, b) => {
+        const rank = rankSearchHit(a, a.code, queryInput) - rankSearchHit(b, b.code, queryInput);
+        if (rank !== 0) return rank;
+        return compareLineageCodes(a.code, b.code);
+      })
+      .slice(0, 12);
+  }, [members, lineage, queryInput, genFilter, branchFilter]);
+
+  const allGenerations = useMemo(() => {
+    const set = new Set();
+    for (const d of Array.isArray(data.dots) ? data.dots : []) {
+      const n = Number(d);
+      if (n > 0) set.add(n);
+    }
+    for (const m of members) {
+      set.add(generationFromLineage(lineage[m.id], m, members));
+    }
+    return [...set].sort((a, b) => a - b);
+  }, [data.dots, members, lineage]);
 
   const branchOptions = useMemo(() => {
     const set = new Set();
@@ -304,6 +331,52 @@ export default function App() {
       return next;
     });
   }
+
+  const jumpToMember = useCallback(
+    (member) => {
+      if (!member?.id) return;
+      const code = lineage[member.id] || member.lineage || member.code || "";
+      const gen = generationFromLineage(code, member, members);
+      setQueryInput(displayMemberName(member));
+      setOpenGens((prev) => {
+        const next = new Set(prev);
+        next.add(gen);
+        return next;
+      });
+      setSeekId(member.id);
+      setHighlightId(member.id);
+      window.setTimeout(() => {
+        document.getElementById("tree")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 10);
+    },
+    [lineage, members]
+  );
+
+  useEffect(() => {
+    if (!seekId) return undefined;
+    let cancelled = false;
+    function tryScroll(attempt) {
+      if (cancelled) return;
+      const el = document.getElementById(`member-card-${seekId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        setSeekId("");
+        return;
+      }
+      if (attempt < 16) window.setTimeout(() => tryScroll(attempt + 1), 60);
+    }
+    const t = window.setTimeout(() => tryScroll(0), 40);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [seekId, generations]);
+
+  useEffect(() => {
+    if (!highlightId) return undefined;
+    const t = window.setTimeout(() => setHighlightId(""), 3200);
+    return () => window.clearTimeout(t);
+  }, [highlightId]);
 
   function rootCoupleCards(people) {
     const root = findPrimaryRoot(members);
@@ -397,7 +470,7 @@ export default function App() {
       <article
         key={m.id}
         id={empty ? undefined : `member-card-${m.id}`}
-        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""} ${hasNote ? "has-note" : ""}`}
+        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""} ${hasNote ? "has-note" : ""} ${!empty && highlightId === m.id ? "search-hit" : ""}`}
         onClick={() => {
           if (empty) {
             if (isAdmin) openFoundingSlot(role);
@@ -562,10 +635,12 @@ export default function App() {
         onGeneration={setGenFilter}
         branch={branchFilter}
         onBranch={setBranchFilter}
-        generations={generations.map(([g]) => g)}
+        generations={allGenerations}
         branches={branchOptions}
         matchCount={filtering ? matchedIds.size : members.length}
         totalCount={members.length}
+        results={searchHits}
+        onPick={jumpToMember}
       />
 
       <section className="hero" id="origin">
@@ -825,6 +900,7 @@ export default function App() {
                       <VirtualGrid
                         items={entries}
                         className=""
+                        seekId={seekId}
                         renderItem={(entry) => renderMemberEntry(entry, gen)}
                       />
                     </>

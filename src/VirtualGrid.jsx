@@ -8,6 +8,7 @@ export default function VirtualGrid({
   estimateHeight = 340,
   className = "",
   threshold = 36,
+  seekId = "",
 }) {
   const scrollerRef = useRef(null);
   const [metrics, setMetrics] = useState({ width: 0, height: 560, scrollTop: 0 });
@@ -40,6 +41,21 @@ export default function VirtualGrid({
     return Math.max(1, Math.floor((w + gap) / (minItemWidth + gap)));
   }, [metrics.width, gap, minItemWidth]);
 
+  const seekIndex = useMemo(() => {
+    if (!seekId) return -1;
+    return items.findIndex((item) => item?.member?.id === seekId || item?.id === seekId);
+  }, [items, seekId]);
+
+  useEffect(() => {
+    if (seekIndex < 0) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const rowHeight = estimateHeight + gap;
+    const row = Math.floor(seekIndex / Math.max(1, cols));
+    el.scrollTop = row * rowHeight;
+    setMetrics((prev) => ({ ...prev, scrollTop: el.scrollTop }));
+  }, [seekIndex, cols, estimateHeight, gap]);
+
   if (!items.length) return null;
 
   if (items.length <= threshold) {
@@ -58,11 +74,18 @@ export default function VirtualGrid({
   const padTop = startRow * rowHeight;
   const padBottom = Math.max(0, (rows - endRow) * rowHeight);
   const slice = [];
+  const seen = new Set();
   for (let row = startRow; row < endRow; row += 1) {
     for (let col = 0; col < cols; col += 1) {
       const index = row * cols + col;
-      if (index < items.length) slice.push({ item: items[index], index });
+      if (index < items.length) {
+        slice.push({ item: items[index], index });
+        seen.add(index);
+      }
     }
+  }
+  if (seekIndex >= 0 && !seen.has(seekIndex)) {
+    slice.push({ item: items[seekIndex], index: seekIndex });
   }
 
   return (
