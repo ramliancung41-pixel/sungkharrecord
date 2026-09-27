@@ -31,6 +31,48 @@ function newId(prefix) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const RELATION_CHOICES = [
+  "First Son",
+  "Second Son",
+  "Third Son",
+  "Fourth Son",
+  "Fifth Son",
+  "Sixth Son",
+  "First Daughter",
+  "Second Daughter",
+  "Third Daughter",
+  "Fourth Daughter",
+  "Fifth Daughter",
+  "Father · Root",
+  "Mother · Root",
+  "Spouse",
+];
+
+function genderClass(gender) {
+  const g = String(gender || "").toLowerCase();
+  if (g === "female" || g === "nu") return "female";
+  if (g === "male" || g === "pa") return "male";
+  return g;
+}
+
+function normalizeGender(gender) {
+  const g = String(gender || "").toLowerCase();
+  if (g === "nu") return "female";
+  if (g === "pa") return "male";
+  if (g === "female" || g === "male" || g === "other") return g;
+  return "male";
+}
+
+function resolvedSpouseDob(member, members = []) {
+  if (member?.spouseDob) return member.spouseDob;
+  const spouseName = String(member?.spouse || "").trim().toLowerCase();
+  if (!spouseName) return "";
+  const match = members.find(
+    (x) => x.id !== member.id && String(x.name || "").trim().toLowerCase() === spouseName
+  );
+  return match?.dob || "";
+}
+
 function HeroInlineField({
   as = "h1",
   className = "",
@@ -247,9 +289,11 @@ export default function App() {
       generation: 1,
       parentId: "",
       spouse: isFather ? spouseMember?.name || "" : root?.name || root?.spouse || "",
+      spouseDob: "",
       dob: "",
       dod: "",
       gender: isFather ? "male" : "female",
+      relation: isFather ? "Father · Root" : "Mother · Root",
       branch: isFather ? "Father · Root" : "Mother · Root",
       bio: "",
       isNew: true,
@@ -265,9 +309,11 @@ export default function App() {
       generation: parent ? (Number(parent.generation) || 1) + 1 : generation,
       parentId,
       spouse: "",
+      spouseDob: "",
       dob: "",
       dod: "",
       gender: "male",
+      relation: "",
       branch: parentCode ? `AD · ${parentCode}` : "Dot 1 · Root",
       bio: "",
       isNew: true,
@@ -572,11 +618,12 @@ export default function App() {
                     const codeLabel = formatLineageLabel(code);
                     const roleLabel =
                       role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
+                    const relationLabel = String(m.relation || "").trim();
                     return (
                       <article
                         key={m.id}
                         id={empty ? undefined : `member-card-${m.id}`}
-                        className={`node glass ${active ? "active note-open" : ""} ${m.gender || ""} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
+                        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
                         onClick={() => {
                           if (empty) {
                             if (isAdmin) openFoundingSlot(role);
@@ -615,13 +662,14 @@ export default function App() {
                           <>
                             <h3>{shownName}</h3>
                             <p className="muted">
-                              {gen === 1
-                                ? roleLabel || "Founding couple"
-                                : m.branch || `AD · ${codeLabel}`}
+                              {relationLabel ||
+                                (gen === 1
+                                  ? roleLabel || "Founding couple"
+                                  : m.branch || `AD · ${codeLabel}`)}
                             </p>
                           </>
                         )}
-                        {!empty && gen !== 1 && (
+                        {!empty && (
                           <dl>
                             <div>
                               <dt>Born</dt>
@@ -633,9 +681,20 @@ export default function App() {
                                 <dd>{formatDate(m.dod)}</dd>
                               </div>
                             )}
+                            {spouseShown && (
+                              <div>
+                                <dt>Spouse</dt>
+                                <dd>{spouseShown}</dd>
+                              </div>
+                            )}
+                            {spouseShown && (
+                              <div>
+                                <dt>Spouse born</dt>
+                                <dd>{formatDate(resolvedSpouseDob(m, members))}</dd>
+                              </div>
+                            )}
                           </dl>
                         )}
-                        {!empty && spouseShown && <p className="spouse">Spouse · {spouseShown}</p>}
                         {!empty && parent && (
                           <p className="parent">
                             Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
@@ -785,11 +844,11 @@ function NoteReadMode({ member, parent, code, kids, lineage, members, onClose })
       aria-modal="true"
       aria-labelledby="note-read-title"
     >
-      <article className={`note-read glass ${member.gender || ""}`} onClick={(e) => e.stopPropagation()}>
+      <article className={`note-read glass ${genderClass(member.gender)}`} onClick={(e) => e.stopPropagation()}>
         <header className="note-read-head">
           <p className="kicker">Read mode · {code}</p>
           <h2 id="note-read-title">{displayMemberName(member)}</h2>
-          <p className="muted">{member.branch || `AD · ${code}`}</p>
+          <p className="muted">{member.relation || member.branch || `AD · ${code}`}</p>
         </header>
         <dl className="note-read-meta">
           <div>
@@ -802,10 +861,22 @@ function NoteReadMode({ member, parent, code, kids, lineage, members, onClose })
               <dd>{formatDate(member.dod)}</dd>
             </div>
           )}
+          {member.relation && (
+            <div>
+              <dt>Relation</dt>
+              <dd>{member.relation}</dd>
+            </div>
+          )}
           {member.spouse && (
             <div>
               <dt>Spouse</dt>
               <dd>{member.spouse}</dd>
+            </div>
+          )}
+          {member.spouse && (
+            <div>
+              <dt>Spouse born</dt>
+              <dd>{formatDate(resolvedSpouseDob(member, members))}</dd>
             </div>
           )}
           {parent && (
@@ -950,13 +1021,26 @@ function GoogleMark() {
 }
 
 function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
-  const [form, setForm] = useState(value);
+  const [form, setForm] = useState({
+    spouseDob: "",
+    relation: "",
+    gender: "male",
+    ...value,
+  });
+  const [customRelation, setCustomRelation] = useState(
+    Boolean(value?.relation && !RELATION_CHOICES.includes(value.relation))
+  );
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const previewMembers = [
     ...members.filter((m) => m.id !== form.id),
     { ...form, generation: Number(form.generation) || 1 },
   ];
   const previewCode = computeLineageCodes(previewMembers)[form.id] || "—";
+  const relationSelectValue = customRelation
+    ? "__custom__"
+    : RELATION_CHOICES.includes(form.relation || "")
+      ? form.relation
+      : "";
 
   return (
     <div className="modal-back" onClick={onClose}>
@@ -972,7 +1056,13 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
           onSave({
             ...form,
             generation,
-            branch: form.branch || (previewCode !== "—" ? `AD · ${previewCode}` : ""),
+            gender: normalizeGender(form.gender),
+            relation: String(form.relation || "").trim(),
+            spouseDob: form.spouseDob || "",
+            branch:
+              form.branch ||
+              form.relation ||
+              (previewCode !== "—" ? `AD · ${previewCode}` : ""),
           });
         }}
       >
@@ -1025,28 +1115,73 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
             </select>
           </label>
           <label>
-            Branch (AD)
-            <input value={form.branch} onChange={(e) => set("branch", e.target.value)} />
+            Birth order / relation
+            <select
+              value={relationSelectValue}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === "__custom__") {
+                  setCustomRelation(true);
+                  if (RELATION_CHOICES.includes(form.relation || "")) set("relation", "");
+                  return;
+                }
+                setCustomRelation(false);
+                set("relation", next);
+              }}
+            >
+              <option value="">Select relation</option>
+              {RELATION_CHOICES.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+              <option value="__custom__">Custom relation</option>
+            </select>
+          </label>
+          {customRelation && (
+            <label>
+              Custom relation
+              <input
+                value={form.relation || ""}
+                onChange={(e) => set("relation", e.target.value)}
+                placeholder="e.g. Adopted son"
+              />
+            </label>
+          )}
+          <label>
+            Gender
+            <select
+              value={normalizeGender(form.gender)}
+              onChange={(e) => set("gender", e.target.value)}
+            >
+              <option value="male">Male · Pa</option>
+              <option value="female">Female · Nu</option>
+              <option value="other">Other</option>
+            </select>
           </label>
           <label>
             Date of birth
-            <input type="date" value={form.dob} onChange={(e) => set("dob", e.target.value)} />
+            <input type="date" value={form.dob || ""} onChange={(e) => set("dob", e.target.value)} />
           </label>
           <label>
             Date of departure
-            <input type="date" value={form.dod} onChange={(e) => set("dod", e.target.value)} />
+            <input type="date" value={form.dod || ""} onChange={(e) => set("dod", e.target.value)} />
           </label>
           <label>
             Spouse
-            <input value={form.spouse} onChange={(e) => set("spouse", e.target.value)} />
+            <input value={form.spouse || ""} onChange={(e) => set("spouse", e.target.value)} />
           </label>
           <label>
-            Gender
-            <select value={form.gender} onChange={(e) => set("gender", e.target.value)}>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
+            Spouse date of birth
+            <input
+              type="date"
+              value={form.spouseDob || ""}
+              onChange={(e) => set("spouseDob", e.target.value)}
+            />
+          </label>
+          <label>
+            Branch (AD)
+            <input value={form.branch || ""} onChange={(e) => set("branch", e.target.value)} />
           </label>
         </div>
         <label>
