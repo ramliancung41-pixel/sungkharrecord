@@ -708,15 +708,15 @@ export default function App() {
                 Add Dot
               </button>
               <button className="btn ghost" type="button" onClick={() => openNewMember(1, "")}>
-                Add member
+                Add Member
               </button>
             </div>
           )}
         </div>
         <p className="hint">
-          Generation <strong>1.</strong> holds only the founding couple: Pu Tai Lio (father / root)
-          and Pi Tuak Tlem (mother / root). Their children begin in generation <strong>2.</strong> as
-          1.1, 1.2, 1.3… Empty root slots stay blank until an Admin adds the ancestor.
+          Generation 1. holds only the founding couple: Pu Tai Lio (father / root) and Pi Tuak Tlem
+          (mother / root). Their children begin in generation 2. as 1.1, 1.2, 1.3… Empty root slots
+          stay blank until an Admin adds the ancestor.
         </p>
         <div className="tree-wrap">
           {generations.map(([gen, people]) => {
@@ -758,7 +758,7 @@ export default function App() {
                           )
                         }
                       >
-                        Add Family / Add Member to this Dot
+                        Add Member
                       </button>
                       {!people.length && (
                         <button
