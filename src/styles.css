@@ -616,7 +616,7 @@ textarea.hero-edit-input.lede {
 }
 
 .role-chip {
-  margin: 0 0 0.45rem;
+  margin: 0;
   width: fit-content;
   border: 1px solid rgba(212, 180, 90, 0.4);
   color: var(--gold);
@@ -636,11 +636,46 @@ textarea.hero-edit-input.lede {
 .node.root-nu .role-chip,
 .node.root-pa .node-gen,
 .node.root-nu .node-gen,
-.node.root-pa .muted,
-.node.root-nu .muted,
-.node.root-pa .spouse {
+.node.root-pa .node-sub,
+.node.root-nu .node-sub,
+.node.root-pa .spouse-card {
   margin-left: auto;
   margin-right: auto;
+}
+
+.node.root-pa .card-actions,
+.node.root-nu .card-actions {
+  justify-content: center;
+}
+
+.node.spouse-root,
+.node.root-nu {
+  border-color: rgba(212, 180, 90, 0.48);
+  box-shadow:
+    0 0 0 1px rgba(212, 180, 90, 0.22),
+    0 0 28px rgba(212, 180, 90, 0.16),
+    0 20px 50px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.node {
+  cursor: pointer;
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.42rem;
+  padding: 1.1rem 1.15rem 1rem;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.node:hover,
+.node.active {
+  transform: translateY(-3px);
+  border-color: rgba(212, 180, 90, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(212, 180, 90, 0.16),
+    0 18px 40px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .node.empty-slot {
@@ -661,23 +696,8 @@ textarea.hero-edit-input.lede {
   font-weight: 500;
 }
 
-.node {
-  cursor: pointer;
-  position: relative;
-  transition: transform 0.25s ease, border-color 0.25s ease;
-}
-
-.node:hover,
-.node.active {
-  transform: translateY(-4px);
-  border-color: rgba(212, 180, 90, 0.45);
-}
-
 .node.note-open {
   z-index: 2;
-  box-shadow:
-    0 22px 48px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .note-read-back {
@@ -777,16 +797,26 @@ textarea.hero-edit-input.lede {
   border-top: 2px solid var(--female);
 }
 
+.node-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .node-gen {
   margin: 0;
   color: var(--gold);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: baseline;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.node-gen-label {
+  opacity: 0.85;
+  font-weight: 500;
 }
 
 .lineage-code {
@@ -795,8 +825,8 @@ textarea.hero-edit-input.lede {
   color: var(--gold-2);
   border: 1px solid rgba(212, 180, 90, 0.4);
   border-radius: 999px;
-  padding: 0.12rem 0.5rem;
-  font-size: 0.78rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
   font-weight: 600;
 }
 
@@ -806,6 +836,114 @@ textarea.hero-edit-input.lede {
 
 .node.main-line .lineage-code {
   background: rgba(212, 180, 90, 0.16);
+}
+
+.node-name,
+.node h3 {
+  margin: 0.1rem 0 0;
+  font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.node-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+}
+
+.node-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.node-meta dt {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.node-meta dd {
+  margin: 0.12rem 0 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.spouse-card {
+  margin: 0.15rem 0 0.1rem;
+  padding: 0.65rem 0.75rem 0.7rem;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 180, 90, 0.42);
+  background:
+    linear-gradient(180deg, rgba(212, 180, 90, 0.14), rgba(8, 10, 16, 0.35));
+  box-shadow:
+    0 0 0 1px rgba(212, 180, 90, 0.12),
+    0 0 18px rgba(212, 180, 90, 0.12);
+  display: grid;
+  gap: 0.12rem;
+  text-align: left;
+}
+
+.spouse-card-kicker {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.spouse-card-name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+  color: var(--gold-2);
+  line-height: 1.2;
+}
+
+.spouse-card-dob {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.icon-btn {
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 180, 90, 0.32);
+  background: rgba(8, 10, 16, 0.45);
+  color: var(--gold-2);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(212, 180, 90, 0.7);
+  background: rgba(212, 180, 90, 0.14);
+}
+
+.icon-btn.danger {
+  color: var(--danger);
+  border-color: rgba(224, 122, 106, 0.4);
+}
+
+.icon-btn.danger:hover {
+  background: rgba(224, 122, 106, 0.12);
+  border-color: var(--danger);
 }
 
 .lineage-preview {
@@ -819,38 +957,16 @@ textarea.hero-edit-input.lede {
   letter-spacing: 0.06em;
 }
 
-.node h3 {
-  margin: 0.15rem 0 0.25rem;
-  font-size: 1.45rem;
-}
-
 .muted {
   color: var(--muted);
 }
 
-.node dl {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0.7rem 0;
-}
-
-.node dt {
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.node dd {
-  margin: 0;
-  color: var(--ink);
-}
-
-.spouse,
 .parent,
 .kids {
-  margin: 0.15rem 0;
-  font-size: 0.88rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .stem {
@@ -861,12 +977,6 @@ textarea.hero-edit-input.lede {
   height: 12px;
   background: var(--gold);
   opacity: 0.5;
-}
-
-.card-actions {
-  display: flex;
-  gap: 0.8rem;
-  margin-top: 0.8rem;
 }
 
 .link {

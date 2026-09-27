@@ -68,6 +68,50 @@ function normalizeGender(gender) {
   return "male";
 }
 
+function IconBtn({ label, danger = false, onClick, children }) {
+  return (
+    <button
+      type="button"
+      className={`icon-btn ${danger ? "danger" : ""}`}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M4 17.3V20h2.7l8-8-2.7-2.7-8 8Zm14.7-8.4a.8.8 0 0 0 0-1.1l-2.5-2.5a.8.8 0 0 0-1.1 0l-1.8 1.8 3.6 3.6 1.8-1.8Z"
+      />
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"
+      />
+    </svg>
+  );
+}
+
 function resolvedSpouseDob(member, members = []) {
   if (member?.spouseDob) return member.spouseDob;
   const spouseName = String(member?.spouse || "").trim().toLowerCase();
@@ -395,7 +439,7 @@ export default function App() {
       <article
         key={m.id}
         id={empty ? undefined : `member-card-${m.id}`}
-        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
+                        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""}`}
         onClick={() => {
           if (empty) {
             if (isAdmin) openFoundingSlot(role);
@@ -408,31 +452,33 @@ export default function App() {
         }
       >
         {parent && <div className="stem" title={`Child of ${displayMemberName(parent)}`} />}
-        {role && <p className="role-chip">{roleLabel}</p>}
-        <p className="node-gen">
-          <span className="lineage-code">{codeLabel}</span>
-          <span>
-            {gen === 1 ? "Ultimate root" : `Dot ${generationFromLineage(code, m, members)}`}
-          </span>
-        </p>
+        <header className="node-head">
+          {role && <p className="role-chip">{roleLabel}</p>}
+          <p className="node-gen">
+            <span className="lineage-code">{codeLabel}</span>
+            <span className="node-gen-label">
+              {gen === 1 ? "Ultimate root" : `Dot ${generationFromLineage(code, m, members)}`}
+            </span>
+          </p>
+        </header>
         {empty ? (
           <>
             <h3>Empty slot</h3>
-            <p className="muted">
+            <p className="node-sub">
               {isAdmin ? "Add founding ancestor" : "Unassigned founding ancestor"}
             </p>
           </>
         ) : (
           <>
-            <h3>{shownName}</h3>
-            <p className="muted">
+            <h3 className="node-name">{shownName}</h3>
+            <p className="node-sub">
               {relationLabel ||
                 (gen === 1 ? roleLabel || "Founding couple" : m.branch || `AD · ${codeLabel}`)}
             </p>
           </>
         )}
         {!empty && (
-          <dl>
+          <dl className="node-meta">
             <div>
               <dt>Born</dt>
               <dd>{formatDate(m.dob)}</dd>
@@ -443,19 +489,14 @@ export default function App() {
                 <dd>{formatDate(m.dod)}</dd>
               </div>
             )}
-            {spouseShown && (
-              <div>
-                <dt>Spouse</dt>
-                <dd>{spouseShown}</dd>
-              </div>
-            )}
-            {spouseShown && (
-              <div>
-                <dt>Spouse born</dt>
-                <dd>{formatDate(resolvedSpouseDob(m, members))}</dd>
-              </div>
-            )}
           </dl>
+        )}
+        {!empty && spouseShown && (
+          <div className="spouse-card">
+            <span className="spouse-card-kicker">Spouse</span>
+            <strong className="spouse-card-name">{spouseShown}</strong>
+            <span className="spouse-card-dob">Born {formatDate(resolvedSpouseDob(m, members))}</span>
+          </div>
         )}
         {!empty && parent && (
           <p className="parent">
@@ -476,22 +517,22 @@ export default function App() {
         )}
         {isAdmin && empty && (
           <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-            <button className="link" onClick={() => openFoundingSlot(role)}>
-              Add founding ancestor
-            </button>
+            <IconBtn label="Add founding ancestor" onClick={() => openFoundingSlot(role)}>
+              <IconPlus />
+            </IconBtn>
           </div>
         )}
         {isAdmin && !empty && (
           <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-            <button className="link" onClick={() => setMemberForm({ ...m })}>
-              Edit
-            </button>
-            <button className="link" onClick={() => openNewMember(Number(m.generation) + 1, m.id)}>
-              Add child
-            </button>
-            <button className="link danger" onClick={() => deleteMember(m.id)}>
-              Delete
-            </button>
+            <IconBtn label="Edit" onClick={() => setMemberForm({ ...m })}>
+              <IconPencil />
+            </IconBtn>
+            <IconBtn label="Add child" onClick={() => openNewMember(Number(m.generation) + 1, m.id)}>
+              <IconPlus />
+            </IconBtn>
+            <IconBtn label="Delete" danger onClick={() => deleteMember(m.id)}>
+              <IconTrash />
+            </IconBtn>
           </div>
         )}
       </article>
