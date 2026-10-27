@@ -3,7 +3,15 @@ import { get, onValue, ref, update } from "firebase/database";
 import { db, isFirebaseConfigured } from "./firebase";
 import { seedData } from "./data/seed";
 import { useAuth } from "./AuthContext";
-import { computeLineageCodes, findPrimaryRoot, findRootSpouse, generationFromLineage, normalizeRootHousehold } from "./lineage";
+import {
+  assignBirthOrders,
+  computeLineageCodes,
+  findPrimaryRoot,
+  findRootSpouse,
+  generationFromLineage,
+  nextBirthOrder,
+  normalizeRootHousehold,
+} from "./lineage";
 
 const DataContext = createContext(null);
 
@@ -32,7 +40,7 @@ export function normalizeDots(dots, members = []) {
 }
 
 function syncMembers(members = []) {
-  const household = normalizeRootHousehold(members);
+  const household = assignBirthOrders(normalizeRootHousehold(members));
   const codes = computeLineageCodes(household, true);
   return household.map((m) => ({
     ...m,
@@ -191,8 +199,14 @@ export function DataProvider({ children }) {
       async upsertMember(member) {
         const members = [...data.members];
         const idx = members.findIndex((m) => m.id === member.id);
-        if (idx >= 0) members[idx] = member;
-        else members.push(member);
+        const slots = nextBirthOrder(members, member.parentId, member.id);
+        const wanted = Math.round(Number(member.birthOrder)) || slots;
+        const saved = {
+          ...member,
+          birthOrder: Math.min(Math.max(wanted, 1), slots) - 0.5,
+        };
+        if (idx >= 0) members[idx] = saved;
+        else members.push(saved);
         await persist({ ...data, members });
       },
       async deleteMember(id) {

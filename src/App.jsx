@@ -19,6 +19,7 @@ import {
   indexByParent,
   isMainBloodline,
   memberMatchesQuery,
+  nextBirthOrder,
   previewLineageCode,
   rankSearchHit,
 } from "./lineage";
@@ -428,6 +429,7 @@ export default function App() {
       name: "",
       generation: parent ? (Number(parent.generation) || 1) + 1 : generation,
       parentId,
+      birthOrder: nextBirthOrder(members, parentId),
       spouse: "",
       spouseDob: "",
       dob: "",
@@ -1198,11 +1200,18 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
     Boolean(value?.relation && !RELATION_CHOICES.includes(value.relation))
   );
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const siblingSlots = nextBirthOrder(members, form.parentId, form.id);
+  const childNumber = Math.min(
+    Math.max(Math.round(Number(form.birthOrder)) || siblingSlots, 1),
+    siblingSlots
+  );
+  const previewDraft = { ...form, birthOrder: childNumber - 0.5 };
   const previewMembers = [
     ...members.filter((m) => m.id !== form.id),
-    { ...form, generation: Number(form.generation) || 1 },
+    { ...previewDraft, generation: Number(form.generation) || 1 },
   ];
-  const previewCode = previewLineageCode(members, form) || computeLineageCodes(previewMembers)[form.id] || "—";
+  const previewCode =
+    previewLineageCode(members, previewDraft) || computeLineageCodes(previewMembers)[form.id] || "—";
   const relationSelectValue = customRelation
     ? "__custom__"
     : RELATION_CHOICES.includes(form.relation || "")
@@ -1222,6 +1231,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
             : Number(form.generation) || 1;
           onSave({
             ...form,
+            birthOrder: childNumber,
             generation,
             gender: normalizeGender(form.gender),
             relation: String(form.relation || "").trim(),
@@ -1237,7 +1247,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
         <h2>{form.isNew ? "Add family member" : "Edit family member"}</h2>
         <p className="lineage-preview">
           Assigned automatically · <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
-          <span className="muted"> from parent and birth date</span>
+          <span className="muted"> from parent and child number</span>
         </p>
         <div className="grid-2">
           <label>
@@ -1265,6 +1275,10 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
                 setForm((f) => ({
                   ...f,
                   parentId,
+                  birthOrder:
+                    parentId === (value?.parentId || "") && !value?.isNew
+                      ? value.birthOrder
+                      : nextBirthOrder(members, parentId, f.id),
                   generation: parent ? (Number(parent.generation) || 1) + 1 : f.generation,
                   branch: parent
                     ? `AD · ${lineage[parent.id] || parent.name}`
@@ -1283,6 +1297,18 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
                 ))}
             </select>
           </label>
+          {form.parentId && (
+            <label>
+              Child number
+              <input
+                type="number"
+                min="1"
+                max={siblingSlots}
+                value={form.birthOrder ?? childNumber}
+                onChange={(e) => set("birthOrder", e.target.value)}
+              />
+            </label>
+          )}
           <label>
             Birth order / relation
             <select

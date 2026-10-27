@@ -12,6 +12,43 @@ function byBirthOrder(a, b) {
 
 export { byBirthOrder };
 
+function orderOf(m) {
+  const n = Number(m?.birthOrder);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Siblings keep the number they were added with; unnumbered legacy entries fall back to birth date. */
+export function bySiblingOrder(a, b) {
+  const oa = orderOf(a);
+  const ob = orderOf(b);
+  if (oa !== null && ob !== null && oa !== ob) return oa - ob;
+  if ((oa === null) !== (ob === null)) return oa === null ? 1 : -1;
+  return byBirthOrder(a, b);
+}
+
+/** Renumbers every sibling group to 1..n so each child's number is stored and stable. */
+export function assignBirthOrders(members = []) {
+  const groups = new Map();
+  for (const m of members) {
+    if (!m) continue;
+    const pid = m.parentId || "";
+    if (!groups.has(pid)) groups.set(pid, []);
+    groups.get(pid).push(m);
+  }
+  for (const list of groups.values()) {
+    list.sort(bySiblingOrder).forEach((m, index) => {
+      m.birthOrder = index + 1;
+    });
+  }
+  return members;
+}
+
+export function nextBirthOrder(members = [], parentId = "", excludeId = "") {
+  return (
+    members.filter((m) => m && (m.parentId || "") === (parentId || "") && m.id !== excludeId).length + 1
+  );
+}
+
 export function compareLineageCodes(a, b) {
   const pa = String(a || "")
     .split(".")
@@ -112,7 +149,7 @@ export function indexByParent(members = []) {
     if (list) list.push(m);
     else map.set(pid, [m]);
   }
-  for (const list of map.values()) list.sort(byBirthOrder);
+  for (const list of map.values()) list.sort(bySiblingOrder);
   return map;
 }
 
