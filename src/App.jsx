@@ -4,8 +4,9 @@ import { useData } from "./DataContext";
 import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
-import VirtualGrid from "./VirtualGrid";
-import { IconBtn, IconNote, IconPencil, IconPlus, IconTrash } from "./uiIcons";
+import FamilyBook from "./FamilyBook";
+import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
+import { safeImageUrl } from "./memberFormat";
 import {
   compareLineageCodes,
   computeLineageCodes,
@@ -17,23 +18,11 @@ import {
   formatLineageLabel,
   generationFromLineage,
   indexByParent,
-  isMainBloodline,
   memberMatchesQuery,
   nextBirthOrder,
   previewLineageCode,
   rankSearchHit,
 } from "./lineage";
-
-function formatDate(value) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function newId(prefix) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -56,29 +45,12 @@ const RELATION_CHOICES = [
   "Spouse",
 ];
 
-function genderClass(gender) {
-  const g = String(gender || "").toLowerCase();
-  if (g === "female" || g === "nu") return "female";
-  if (g === "male" || g === "pa") return "male";
-  return g;
-}
-
 function normalizeGender(gender) {
   const g = String(gender || "").toLowerCase();
   if (g === "nu") return "female";
   if (g === "pa") return "male";
   if (g === "female" || g === "male" || g === "other") return g;
   return "male";
-}
-
-function resolvedSpouseDob(member, members = []) {
-  if (member?.spouseDob) return member.spouseDob;
-  const spouseName = String(member?.spouse || "").trim().toLowerCase();
-  if (!spouseName) return "";
-  const match = members.find(
-    (x) => x.id !== member.id && String(x.name || "").trim().toLowerCase() === spouseName
-  );
-  return match?.dob || "";
 }
 
 function HeroInlineField({
@@ -212,26 +184,13 @@ export default function App() {
   const [eventForm, setEventForm] = useState(null);
   const [editingOrigin, setEditingOrigin] = useState(false);
   const [originDraft, setOriginDraft] = useState(data.chronicle);
-  const [focusId, setFocusId] = useState("");
+  const [selectedId, setSelectedId] = useState("");
   const [mediaOpen, setMediaOpen] = useState(false);
   const [queryInput, setQueryInput] = useState("");
   const [genFilter, setGenFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [openGens, setOpenGens] = useState(() => new Set([1, 2]));
-  const [seekId, setSeekId] = useState("");
   const [highlightId, setHighlightId] = useState("");
-
-  const closeNote = useCallback(() => {
-    const id = focusId;
-    setFocusId("");
-    if (!id) return;
-    window.requestAnimationFrame(() => {
-      document.getElementById(`member-card-${id}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    });
-  }, [focusId]);
 
   useEffect(() => {
     setOriginDraft(data.chronicle);
@@ -338,40 +297,22 @@ export default function App() {
       if (!member?.id) return;
       const code = lineage[member.id] || member.lineage || member.code || "";
       const gen = generationFromLineage(code, member, members);
-      setQueryInput(displayMemberName(member));
       setOpenGens((prev) => {
         const next = new Set(prev);
         next.add(gen);
         return next;
       });
-      setSeekId(member.id);
+      setSelectedId(member.id);
       setHighlightId(member.id);
-      window.setTimeout(() => {
-        document.getElementById("tree")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 10);
+      window.requestAnimationFrame(() => {
+        const mobile = window.matchMedia("(max-width: 900px)").matches;
+        document
+          .getElementById(mobile ? "book-detail" : "tree")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     },
     [lineage, members]
   );
-
-  useEffect(() => {
-    if (!seekId) return undefined;
-    let cancelled = false;
-    function tryScroll(attempt) {
-      if (cancelled) return;
-      const el = document.getElementById(`member-card-${seekId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-        setSeekId("");
-        return;
-      }
-      if (attempt < 16) window.setTimeout(() => tryScroll(attempt + 1), 60);
-    }
-    const t = window.setTimeout(() => tryScroll(0), 40);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-    };
-  }, [seekId, generations]);
 
   useEffect(() => {
     if (!highlightId) return undefined;
@@ -379,25 +320,53 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [highlightId]);
 
-  function rootCoupleCards(people) {
-    const root = findPrimaryRoot(members);
-    const spouseMember = findRootSpouse(members, root) || (root ? defaultRootMother(root) : null);
-    return [
-      {
-        member: root
-          ? people.find((p) => p.id === root.id) || root
-          : emptyRootSlot("pa", spouseMember?.name || ""),
-        role: "pa",
-        empty: !root,
-      },
-      {
-        member: spouseMember
-          ? people.find((p) => p.id === spouseMember.id) || spouseMember
-          : emptyRootSlot("nu", root?.name || ""),
-        role: "nu",
-        empty: !spouseMember,
-      },
-    ];
+  const rootCoupleCards = useCallback(
+    (people) => {
+      const root = findPrimaryRoot(members);
+      const spouseMember = findRootSpouse(members, root) || (root ? defaultRootMother(root) : null);
+      return [
+        {
+          member: root
+            ? people.find((p) => p.id === root.id) || root
+            : emptyRootSlot("pa", spouseMember?.name || ""),
+          role: "pa",
+          empty: !root,
+        },
+        {
+          member: spouseMember
+            ? people.find((p) => p.id === spouseMember.id) || spouseMember
+            : emptyRootSlot("nu", root?.name || ""),
+          role: "nu",
+          empty: !spouseMember,
+        },
+      ];
+    },
+    [members]
+  );
+
+  const activeId =
+    selectedId && byId[selectedId] ? selectedId : findPrimaryRoot(members)?.id || members[0]?.id || "";
+
+  async function removeMember(member) {
+    if (!window.confirm(`Remove ${displayMemberName(member) || "this member"} from the chronicle?`)) return;
+    await deleteMember(member.id);
+    if (member.id === selectedId) setSelectedId(member.parentId || "");
+  }
+
+  function addMemberToDot(gen) {
+    openNewMember(
+      gen,
+      gen > 1 ? members.find((m) => Number(m.generation) === gen - 1)?.id || "" : ""
+    );
+  }
+
+  async function removeDot(gen) {
+    if (!window.confirm(`Delete empty Dot ${gen}?`)) return;
+    try {
+      await deleteDot(gen);
+    } catch (err) {
+      window.alert(err.message || "Could not delete Dot.");
+    }
   }
 
   function openFoundingSlot(role) {
@@ -450,147 +419,6 @@ export default function App() {
         block: "center",
       });
     });
-  }
-
-  function renderMemberEntry(entry, gen) {
-    const m = entry.member;
-    const role = entry.role;
-    const empty = Boolean(entry.empty || m.emptySlot || m.virtual);
-    const parent = empty ? null : byId[m.parentId];
-    const kids = empty ? [] : childrenOf(m.id);
-    const active = !empty && focusId === m.id;
-    const code = empty ? "1" : lineage[m.id] || String(m.generation || 1);
-    const main = isMainBloodline(code);
-    const shownName = displayMemberName(m);
-    const spouseShown = String(m.spouse || "").trim();
-    const parentShown = parent ? displayMemberName(parent) : "";
-    const codeLabel = formatLineageLabel(code);
-    const roleLabel = role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
-    const relationLabel = String(m.relation || "").trim();
-    const hasNote = !empty && Boolean(String(m.bio || "").trim());
-    return (
-      <article
-        key={m.id}
-        id={empty ? undefined : `member-card-${m.id}`}
-        className={`node glass ${active ? "active note-open" : ""} ${genderClass(m.gender)} ${main ? "main-line" : ""} ${role ? `root-${role}` : ""} ${role === "nu" ? "spouse-root" : ""} ${empty ? "empty-slot" : ""} ${empty && isAdmin ? "empty-editable" : ""} ${hasNote ? "has-note" : ""} ${!empty && highlightId === m.id ? "search-hit" : ""}`}
-        onClick={() => {
-          if (empty) {
-            if (isAdmin) openFoundingSlot(role);
-            return;
-          }
-          setFocusId(m.id);
-        }}
-        title={
-          empty
-            ? isAdmin
-              ? "Add founding ancestor"
-              : "Empty slot"
-            : hasNote
-              ? "Click to read note"
-              : "Click for member details"
-        }
-      >
-        {hasNote && (
-          <button
-            type="button"
-            className="note-badge"
-            aria-label={`Read note for ${shownName}`}
-            title="Read note"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFocusId(m.id);
-            }}
-          >
-            <IconNote />
-            <span>Note</span>
-          </button>
-        )}
-        {parent && <div className="stem" title={`Child of ${displayMemberName(parent)}`} />}
-        <header className="node-head">
-          {role && <p className="role-chip">{roleLabel}</p>}
-          <p className="node-gen">
-            <span className="lineage-code">{codeLabel}</span>
-            <span className="node-gen-label">
-              {gen === 1 ? "Ultimate root" : `Dot ${generationFromLineage(code, m, members)}`}
-            </span>
-          </p>
-        </header>
-        {empty ? (
-          <>
-            <h3>Empty slot</h3>
-            <p className="node-sub">
-              {isAdmin ? "Add founding ancestor" : "Unassigned founding ancestor"}
-            </p>
-          </>
-        ) : (
-          <>
-            <h3 className="node-name">{shownName}</h3>
-            <p className="node-sub">
-              {relationLabel ||
-                (gen === 1 ? roleLabel || "Founding couple" : m.branch || `AD · ${codeLabel}`)}
-            </p>
-          </>
-        )}
-        {!empty && (
-          <dl className="node-meta">
-            <div>
-              <dt>Born</dt>
-              <dd>{formatDate(m.dob)}</dd>
-            </div>
-            {m.dod && (
-              <div>
-                <dt>Departed</dt>
-                <dd>{formatDate(m.dod)}</dd>
-              </div>
-            )}
-          </dl>
-        )}
-        {!empty && spouseShown && (
-          <div className="spouse-card">
-            <span className="spouse-card-kicker">Spouse</span>
-            <strong className="spouse-card-name">{spouseShown}</strong>
-            <span className="spouse-card-dob">Born {formatDate(resolvedSpouseDob(m, members))}</span>
-          </div>
-        )}
-        {!empty && parent && (
-          <p className="parent">
-            Child of {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
-            {parentShown}
-          </p>
-        )}
-        {!empty && kids.length > 0 && (
-          <p className="kids">
-            {kids.length} descendant{kids.length === 1 ? "" : "s"} · next{" "}
-            {kids
-              .map((k) => formatLineageLabel(lineage[k.id]))
-              .filter(Boolean)
-              .slice(0, 4)
-              .join(", ")}
-            {kids.length > 4 ? "…" : ""}
-          </p>
-        )}
-        {isAdmin && empty && (
-          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-            <IconBtn label="Add founding ancestor" onClick={() => openFoundingSlot(role)}>
-              <IconPlus />
-            </IconBtn>
-          </div>
-        )}
-        {isAdmin && !empty && (
-          <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-            <IconBtn label="Edit" onClick={() => setMemberForm({ ...m })}>
-              <IconPencil />
-            </IconBtn>
-            <IconBtn label="Add child" onClick={() => openNewMember(Number(m.generation) + 1, m.id)}>
-              <IconPlus />
-            </IconBtn>
-            <IconBtn label="Delete" danger onClick={() => deleteMember(m.id)}>
-              <IconTrash />
-            </IconBtn>
-          </div>
-        )}
-      </article>
-    );
   }
 
   return (
@@ -817,101 +645,27 @@ export default function App() {
           (mother / root). Their children begin in generation 2. as 1.1, 1.2, 1.3… Empty root slots
           stay blank until an Admin adds the ancestor.
         </p>
-        <div className="tree-wrap">
-          {generations.map(([gen, people]) => {
-            const expanded = filtering || openGens.has(gen) || gen === 1;
-            const entries =
-              gen === 1 ? rootCoupleCards(people) : people.map((member) => ({ member }));
-            return (
-              <section key={gen} id={`dot-${gen}`} className="gen-row glass dot-section">
-                <div className="dot-section-head">
-                  <button
-                    type="button"
-                    className="dot-toggle"
-                    onClick={() => toggleGen(gen)}
-                    aria-expanded={expanded}
-                  >
-                    <div className="dot-mark">
-                      <p className="dot-mark-num">{gen}.</p>
-                      <p className="muted dot-count">
-                        {gen === 1
-                          ? "Founding couple · numbered 1."
-                          : people.length
-                            ? `${people.length} family member${people.length === 1 ? "" : "s"}`
-                            : "Empty generation — add the first family"}
-                      </p>
-                    </div>
-                    <span className="dot-toggle-label">{expanded ? "Hide" : "Show"}</span>
-                  </button>
-                  {isAdmin && (
-                    <div className="dot-section-actions">
-                      <button
-                        className="btn gold"
-                        type="button"
-                        onClick={() =>
-                          openNewMember(
-                            gen,
-                            gen > 1
-                              ? members.find((m) => Number(m.generation) === gen - 1)?.id || ""
-                              : ""
-                          )
-                        }
-                      >
-                        Add Member
-                      </button>
-                      {!people.length && (
-                        <button
-                          className="btn ghost danger-btn"
-                          type="button"
-                          onClick={async () => {
-                            if (!window.confirm(`Delete empty Dot ${gen}?`)) return;
-                            try {
-                              await deleteDot(gen);
-                            } catch (err) {
-                              window.alert(err.message || "Could not delete Dot.");
-                            }
-                          }}
-                        >
-                          Delete Dot
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {expanded && (
-                  gen === 1 ? (
-                    <div className="nodes root-couple">
-                      {entries.map((entry) => renderMemberEntry(entry, gen))}
-                    </div>
-                  ) : (
-                    <>
-                      {!people.length && (
-                        <div className="dot-empty">
-                          <p>No members in generation {gen}. yet.</p>
-                          {isAdmin && (
-                            <button
-                              className="link"
-                              type="button"
-                              onClick={() => openNewMember(gen, "")}
-                            >
-                              Add the first member here
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <VirtualGrid
-                        items={entries}
-                        className=""
-                        seekId={seekId}
-                        renderItem={(entry) => renderMemberEntry(entry, gen)}
-                      />
-                    </>
-                  )
-                )}
-              </section>
-            );
-          })}
-        </div>
+        <FamilyBook
+          groups={generations}
+          members={members}
+          byId={byId}
+          lineage={lineage}
+          childrenOf={childrenOf}
+          rootEntriesFor={rootCoupleCards}
+          selectedId={activeId}
+          onSelect={setSelectedId}
+          highlightId={highlightId}
+          openGens={openGens}
+          onToggleGen={toggleGen}
+          filtering={filtering}
+          isAdmin={isAdmin}
+          onEdit={(m) => setMemberForm({ ...m })}
+          onAddChild={(m) => openNewMember(Number(m.generation) + 1, m.id)}
+          onDelete={removeMember}
+          onAddMember={addMemberToDot}
+          onDeleteDot={removeDot}
+          onFoundingSlot={openFoundingSlot}
+        />
       </section>
 
       <section className="panel" id="media">
@@ -933,18 +687,6 @@ export default function App() {
 
       <MediaDrawer open={mediaOpen} onClose={() => setMediaOpen(false)} />
 
-      {focusId && byId[focusId] && (
-        <NoteReadMode
-          member={byId[focusId]}
-          parent={byId[byId[focusId].parentId]}
-          code={formatLineageLabel(lineage[focusId] || String(byId[focusId].generation || 1))}
-          kids={childrenOf(focusId)}
-          lineage={lineage}
-          members={members}
-          onClose={closeNote}
-        />
-      )}
-
       {loginOpen && !isAdmin && (
         <LoginModal
           onClose={() => setLoginOpen(false)}
@@ -964,6 +706,7 @@ export default function App() {
             const { isNew, ...rest } = next;
             await upsertMember(rest);
             setMemberForm(null);
+            setSelectedId(rest.id);
           }}
         />
       )}
@@ -983,105 +726,6 @@ export default function App() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function NoteReadMode({ member, parent, code, kids, lineage, members, onClose }) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  const note = member.bio?.trim()
-    ? member.bio
-    : "No note recorded for this member yet.";
-
-  return (
-    <div
-      className="note-read-back"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="note-read-title"
-    >
-      <article className={`note-read glass ${genderClass(member.gender)}`} onClick={(e) => e.stopPropagation()}>
-        <header className="note-read-head">
-          <p className="kicker">Read mode · {code}</p>
-          <h2 id="note-read-title">{displayMemberName(member)}</h2>
-          <p className="muted">{member.relation || member.branch || `AD · ${code}`}</p>
-        </header>
-        <dl className="note-read-meta">
-          <div>
-            <dt>Born</dt>
-            <dd>{formatDate(member.dob)}</dd>
-          </div>
-          {member.dod && (
-            <div>
-              <dt>Departed</dt>
-              <dd>{formatDate(member.dod)}</dd>
-            </div>
-          )}
-          {member.relation && (
-            <div>
-              <dt>Relation</dt>
-              <dd>{member.relation}</dd>
-            </div>
-          )}
-          {member.spouse && (
-            <div>
-              <dt>Spouse</dt>
-              <dd>{member.spouse}</dd>
-            </div>
-          )}
-          {member.spouse && (
-            <div>
-              <dt>Spouse born</dt>
-              <dd>{formatDate(resolvedSpouseDob(member, members))}</dd>
-            </div>
-          )}
-          {parent && (
-            <div>
-              <dt>Child of</dt>
-              <dd>
-                {lineage[parent.id] ? `${formatLineageLabel(lineage[parent.id])} ` : ""}
-                {displayMemberName(parent)}
-              </dd>
-            </div>
-          )}
-          {kids.length > 0 && (
-            <div>
-              <dt>Descendants</dt>
-              <dd>
-                {kids.length} · next{" "}
-                {kids
-                  .map((k) => lineage[k.id])
-                  .filter(Boolean)
-                  .slice(0, 6)
-                  .join(", ")}
-                {kids.length > 6 ? "…" : ""}
-              </dd>
-            </div>
-          )}
-        </dl>
-        <div className="note-read-body">
-          <p className="note-read-label">Note</p>
-          <p className="note-read-text">{note}</p>
-        </div>
-        <div className="note-read-actions">
-          <button type="button" className="btn gold note-read-close" onClick={onClose}>
-            Close
-          </button>
-        </div>
-      </article>
     </div>
   );
 }
@@ -1232,6 +876,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
           onSave({
             ...form,
             birthOrder: childNumber,
+            photo: safeImageUrl(form.photo),
             generation,
             gender: normalizeGender(form.gender),
             relation: String(form.relation || "").trim(),
@@ -1379,9 +1024,24 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
             <input value={form.branch || ""} onChange={(e) => set("branch", e.target.value)} />
           </label>
         </div>
+        <div className="photo-field">
+          <label>
+            Profile photo URL
+            <input
+              type="url"
+              inputMode="url"
+              value={form.photo || ""}
+              onChange={(e) => set("photo", e.target.value)}
+              placeholder="https://… (image link)"
+            />
+          </label>
+          <div className="photo-field-preview" aria-hidden="true">
+            {safeImageUrl(form.photo) ? <img src={safeImageUrl(form.photo)} alt="" /> : <span>Photo</span>}
+          </div>
+        </div>
         <label>
-          Note
-          <textarea rows={4} value={form.bio} onChange={(e) => set("bio", e.target.value)} />
+          Biography / note
+          <textarea rows={5} value={form.bio} onChange={(e) => set("bio", e.target.value)} />
         </label>
         <div className="row">
           <button className="btn gold" type="submit">
