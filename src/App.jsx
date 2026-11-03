@@ -354,10 +354,10 @@ export default function App() {
   }
 
   function addMemberToDot(gen) {
-    openNewMember(
-      gen,
-      gen > 1 ? members.find((m) => Number(m.generation) === gen - 1)?.id || "" : ""
+    const candidates = members.filter(
+      (m) => generationFromLineage(lineage[m.id], m, members) === gen - 1
     );
+    openNewMember(gen, candidates.length === 1 ? candidates[0].id : "", gen);
   }
 
   async function removeDot(gen) {
@@ -387,10 +387,11 @@ export default function App() {
       branch: isFather ? "Father · Root" : "Mother · Root",
       bio: "",
       isNew: true,
+      isFounding: true,
     });
   }
 
-  function openNewMember(generation = 1, parentId = "") {
+  function openNewMember(generation = 1, parentId = "", targetDot = 0) {
     const parent = byId[parentId];
     const parentCode = parent ? lineage[parent.id] : "";
     setMemberForm({
@@ -408,6 +409,7 @@ export default function App() {
       branch: parentCode ? `AD · ${parentCode}` : "Dot 1 · Root",
       bio: "",
       isNew: true,
+      targetDot,
     });
   }
 
@@ -703,7 +705,7 @@ export default function App() {
           value={memberForm}
           onClose={() => setMemberForm(null)}
           onSave={async (next) => {
-            const { isNew, ...rest } = next;
+            const { isNew, isFounding, targetDot, ...rest } = next;
             await upsertMember(rest);
             setMemberForm(null);
             setSelectedId(rest.id);
@@ -856,6 +858,30 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
   ];
   const previewCode =
     previewLineageCode(members, previewDraft) || computeLineageCodes(previewMembers)[form.id] || "—";
+  const targetDot = Number(form.targetDot) || 0;
+  const needsParent = Boolean(form.isNew && !form.isFounding);
+  const descendants = new Set();
+  if (!form.isNew) {
+    const queue = [form.id];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const m of members) {
+        if (m.parentId === id && !descendants.has(m.id)) {
+          descendants.add(m.id);
+          queue.push(m.id);
+        }
+      }
+    }
+  }
+  const parentChoices = members
+    .filter((m) => m.id !== form.id && !descendants.has(m.id))
+    .filter(
+      (m) =>
+        targetDot < 2 ||
+        m.id === form.parentId ||
+        generationFromLineage(lineage[m.id], m, members) === targetDot - 1
+    )
+    .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
   const relationSelectValue = customRelation
     ? "__custom__"
     : RELATION_CHOICES.includes(form.relation || "")
@@ -914,6 +940,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
             Parent
             <select
               value={form.parentId}
+              required={needsParent}
               onChange={(e) => {
                 const parentId = e.target.value;
                 const parent = members.find((m) => m.id === parentId);
@@ -931,16 +958,19 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
                 }));
               }}
             >
-              <option value="">None (founding / Dot 1)</option>
-              {members
-                .filter((m) => m.id !== form.id)
-                .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]))
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {lineage[m.id] || `Dot ${m.generation}`} · {m.name}
-                  </option>
-                ))}
+              <option value="">{needsParent ? "Choose a parent…" : "None (founding / Dot 1)"}</option>
+              {parentChoices.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formatLineageLabel(lineage[m.id]) || `Dot ${m.generation}`} · {m.name}
+                  {m.spouse ? ` & ${m.spouse}` : ""}
+                </option>
+              ))}
             </select>
+            {targetDot > 1 && (
+              <span className="field-hint">
+                Showing Dot {targetDot - 1} parents · the child joins that family in Dot {targetDot}
+              </span>
+            )}
           </label>
           {form.parentId && (
             <label>

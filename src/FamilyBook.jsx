@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconBtn, IconPencil, IconPlus, IconTrash } from "./uiIcons";
 import {
+  compareLineageCodes,
   displayMemberName,
   formatLineageLabel,
   generationFromLineage,
@@ -100,21 +101,40 @@ export default function FamilyBook({
   const detailRef = useRef(null);
   const indexRef = useRef(null);
 
-  const entriesByGen = useMemo(
+  const dots = useMemo(
     () =>
-      groups.map(([gen, people]) => [
-        gen,
-        gen === 1 ? rootEntriesFor(people) : people.map((member) => ({ member })),
-      ]),
-    [groups, rootEntriesFor]
+      groups.map(([gen, people]) => {
+        if (gen === 1) {
+          return { gen, families: [{ parentId: "", parent: null, entries: rootEntriesFor(people) }] };
+        }
+        const byParent = new Map();
+        for (const member of people) {
+          const parentId = member.parentId || "";
+          if (!byParent.has(parentId)) {
+            byParent.set(parentId, { parentId, parent: byId[parentId] || null, entries: [] });
+          }
+          byParent.get(parentId).entries.push({ member });
+        }
+        const families = [...byParent.values()];
+        for (const family of families) {
+          family.entries.sort((a, b) =>
+            compareLineageCodes(lineage[a.member.id], lineage[b.member.id])
+          );
+        }
+        families.sort((a, b) => compareLineageCodes(lineage[a.parentId], lineage[b.parentId]));
+        return { gen, families };
+      }),
+    [groups, rootEntriesFor, byId, lineage]
   );
 
   const reading = useMemo(
     () =>
-      entriesByGen.flatMap(([, entries]) =>
-        entries.filter((e) => !e.empty && e.member?.id).map((e) => e.member.id)
+      dots.flatMap(({ families }) =>
+        families.flatMap((f) =>
+          f.entries.filter((e) => !e.empty && e.member?.id).map((e) => e.member.id)
+        )
       ),
-    [entriesByGen]
+    [dots]
   );
 
   const member = selectedId ? byId[selectedId] : null;
@@ -187,9 +207,9 @@ export default function FamilyBook({
           </p>
         </header>
 
-        {entriesByGen.map(([gen, entries]) => {
+        {dots.map(({ gen, families }) => {
           const expanded = filtering || gen === 1 || openGens.has(gen);
-          const count = entries.filter((e) => !e.empty).length;
+          const count = families.reduce((n, f) => n + f.entries.filter((e) => !e.empty).length, 0);
           return (
             <section key={gen} id={`dot-${gen}`} className="book-group">
               <div className="book-group-head">
@@ -205,7 +225,11 @@ export default function FamilyBook({
                     <strong>{gen === 1 ? "Founding couple" : `Dot ${gen}`}</strong>
                     <small>
                       {count
-                        ? `${count} member${count === 1 ? "" : "s"}`
+                        ? `${count} member${count === 1 ? "" : "s"}${
+                            gen === 1
+                              ? ""
+                              : ` · ${families.length} ${families.length === 1 ? "family" : "families"}`
+                          }`
                         : "Empty generation"}
                     </small>
                   </span>
@@ -227,26 +251,44 @@ export default function FamilyBook({
                 )}
               </div>
 
-              {expanded && (
-                <ul className="book-entries">
-                  {entries.map((entry) => (
-                    <li key={entry.member.id}>
-                      <IndexEntry
-                        entry={entry}
-                        byId={byId}
-                        lineage={lineage}
-                        members={members}
-                        active={!entry.empty && entry.member.id === selectedId}
-                        hit={!entry.empty && entry.member.id === highlightId}
-                        isAdmin={isAdmin}
-                        onSelect={select}
-                        onFoundingSlot={onFoundingSlot}
-                      />
-                    </li>
-                  ))}
-                  {!entries.length && <li className="book-entries-empty">No members yet.</li>}
-                </ul>
-              )}
+              {expanded &&
+                (families.length ? (
+                  families.map((family) => (
+                    <div
+                      key={family.parentId || "root"}
+                      className={`book-family ${family.parent ? "" : "root"}`}
+                    >
+                      {family.parent && (
+                        <FamilyHead
+                          parent={family.parent}
+                          lineage={lineage}
+                          isAdmin={isAdmin}
+                          active={family.parent.id === selectedId}
+                          onSelect={select}
+                          onAddChild={onAddChild}
+                        />
+                      )}
+                      <ul className="book-entries">
+                        {family.entries.map((entry) => (
+                          <li key={entry.member.id}>
+                            <IndexEntry
+                              entry={entry}
+                              lineage={lineage}
+                              members={members}
+                              active={!entry.empty && entry.member.id === selectedId}
+                              hit={!entry.empty && entry.member.id === highlightId}
+                              isAdmin={isAdmin}
+                              onSelect={select}
+                              onFoundingSlot={onFoundingSlot}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+                ) : (
+                  <p className="book-entries-empty">No members yet.</p>
+                ))}
             </section>
           );
         })}
@@ -255,7 +297,33 @@ export default function FamilyBook({
   );
 }
 
-function IndexEntry({ entry, byId, lineage, members, active, hit, isAdmin, onSelect, onFoundingSlot }) {
+function FamilyHead({ parent, lineage, isAdmin, active, onSelect, onAddChild }) {
+  const name = displayMemberName(parent) || "Unnamed";
+  const partner = String(parent.spouse || "").trim();
+  return (
+    <div className="book-family-head">
+      <button
+        type="button"
+        className={`book-family-parent ${active ? "active" : ""}`}
+        onClick={() => onSelect(parent.id)}
+        title={`Open ${name}`}
+      >
+        <span className="book-family-label">Children of</span>
+        <span className="book-family-name">
+          <em>{formatLineageLabel(lineage[parent.id])}</em> {name}
+          {partner && <span className="book-family-partner"> &amp; {partner}</span>}
+        </span>
+      </button>
+      {isAdmin && (
+        <IconBtn label={`Add child to ${name}`} onClick={() => onAddChild(parent)}>
+          <IconPlus />
+        </IconBtn>
+      )}
+    </div>
+  );
+}
+
+function IndexEntry({ entry, lineage, members, active, hit, isAdmin, onSelect, onFoundingSlot }) {
   const m = entry.member;
   const role = entry.role;
   const roleLabel = role === "pa" ? "Father · Root" : role === "nu" ? "Mother · Root" : "";
@@ -278,11 +346,11 @@ function IndexEntry({ entry, byId, lineage, members, active, hit, isAdmin, onSel
   }
 
   const code = lineage[m.id] || String(m.generation || 1);
-  const parent = byId[m.parentId];
   const relation = String(m.relation || "").trim();
+  const spouse = String(m.spouse || "").trim();
   const sub = role
     ? roleLabel
-    : [relation, parent ? `of ${displayMemberName(parent)}` : ""].filter(Boolean).join(" · ");
+    : [relation, spouse ? `Spouse ${spouse}` : ""].filter(Boolean).join(" · ");
   const hasBio = Boolean(String(m.bio || "").trim());
   const gen = generationFromLineage(code, m, members);
 
