@@ -2235,7 +2235,7 @@ code {
 
 .placement {
   display: grid;
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: repeat(3, auto) 1fr;
   gap: 0.4rem 1.4rem;
   align-items: end;
   margin: 0 0 1.1rem;
@@ -2293,6 +2293,19 @@ code {
   justify-self: start;
   padding: 0;
   font-size: 0.78rem;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+label .check-row input {
+  width: auto;
+  accent-color: var(--gold);
 }
 
 .field-hint {

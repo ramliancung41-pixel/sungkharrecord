@@ -9,11 +9,13 @@ import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
 import { safeImageUrl } from "./memberFormat";
 import {
   compareLineageCodes,
+  computeDisplayDots,
   computeLineageCodes,
   defaultRootMother,
   displayMemberName,
   emptyRootSlot,
   findPrimaryRoot,
+  familyDot,
   findRootSpouse,
   formatLineageLabel,
   generationFromLineage,
@@ -200,6 +202,7 @@ export default function App() {
   const byId = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
   const lineage = useMemo(() => computeLineageCodes(members), [members]);
   const childrenByParent = useMemo(() => indexByParent(members), [members]);
+  const displayDots = useMemo(() => computeDisplayDots(members), [members]);
 
   const filtering = Boolean(queryInput.trim() || genFilter || branchFilter);
 
@@ -207,10 +210,11 @@ export default function App() {
     const ids = new Set();
     for (const m of members) {
       const code = lineage[m.id] || m.lineage || "";
-      if (memberMatchesQuery(m, code, queryInput, genFilter, branchFilter)) ids.add(m.id);
+      const inDot = { ...m, generation: displayDots[m.id] };
+      if (memberMatchesQuery(inDot, code, queryInput, genFilter, branchFilter)) ids.add(m.id);
     }
     return ids;
-  }, [members, lineage, queryInput, genFilter, branchFilter]);
+  }, [members, lineage, displayDots, queryInput, genFilter, branchFilter]);
 
   const searchHits = useMemo(() => {
     const q = String(queryInput || "").trim();
@@ -219,7 +223,7 @@ export default function App() {
       .filter((m) => !m.emptySlot && !m.virtual)
       .map((m) => {
         const code = lineage[m.id] || m.lineage || "";
-        return { ...m, code, lineage: code };
+        return { ...m, code, lineage: code, generation: displayDots[m.id] };
       })
       .filter((m) => memberMatchesQuery(m, m.code, queryInput, genFilter, branchFilter))
       .sort((a, b) => {
@@ -228,19 +232,16 @@ export default function App() {
         return compareLineageCodes(a.code, b.code);
       })
       .slice(0, 12);
-  }, [members, lineage, queryInput, genFilter, branchFilter]);
+  }, [members, lineage, displayDots, queryInput, genFilter, branchFilter]);
 
   const allGenerations = useMemo(() => {
-    const set = new Set();
+    const set = new Set(Object.values(displayDots));
     for (const d of Array.isArray(data.dots) ? data.dots : []) {
       const n = Number(d);
       if (n > 0) set.add(n);
     }
-    for (const m of members) {
-      set.add(generationFromLineage(lineage[m.id], m, members));
-    }
     return [...set].sort((a, b) => a - b);
-  }, [data.dots, members, lineage]);
+  }, [data.dots, displayDots]);
 
   const branchOptions = useMemo(() => {
     const set = new Set();
@@ -259,8 +260,7 @@ export default function App() {
       if (Number.isFinite(g) && g > 0) map.set(g, []);
     }
     for (const m of members) {
-      const code = lineage[m.id];
-      const g = generationFromLineage(code, m, members);
+      const g = displayDots[m.id] || 2;
       if (filtering && !matchedIds.has(m.id)) continue;
       if (!map.has(g)) map.set(g, []);
       map.get(g).push(m);
@@ -277,7 +277,7 @@ export default function App() {
     return [...map.entries()]
       .filter(([, people]) => !filtering || people.length > 0)
       .sort((a, b) => a[0] - b[0]);
-  }, [members, data.dots, lineage, filtering, matchedIds]);
+  }, [members, data.dots, lineage, displayDots, filtering, matchedIds]);
 
   function childrenOf(id) {
     return childrenByParent.get(id) || [];
@@ -295,8 +295,7 @@ export default function App() {
   const jumpToMember = useCallback(
     (member) => {
       if (!member?.id) return;
-      const code = lineage[member.id] || member.lineage || member.code || "";
-      const gen = generationFromLineage(code, member, members);
+      const gen = displayDots[member.id] || 2;
       setOpenGens((prev) => {
         const next = new Set(prev);
         next.add(gen);
@@ -311,7 +310,7 @@ export default function App() {
           ?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     },
-    [lineage, members]
+    [displayDots]
   );
 
   useEffect(() => {
@@ -407,6 +406,7 @@ export default function App() {
       generation: parent ? (Number(parent.generation) || 1) + 1 : generation,
       parentId,
       birthOrder: nextBirthOrder(members, parentId),
+      dot: familyDot(members, parentId) || targetDot || "",
       spouse: "",
       spouseDob: "",
       dob: "",
@@ -659,6 +659,7 @@ export default function App() {
           members={members}
           byId={byId}
           lineage={lineage}
+          displayDots={displayDots}
           childrenOf={childrenOf}
           rootEntriesFor={rootCoupleCards}
           selectedId={activeId}
@@ -709,19 +710,21 @@ export default function App() {
         <MemberModal
           members={members}
           lineage={lineage}
+          displayDots={displayDots}
+          dotList={allGenerations}
           value={memberForm}
           onClose={() => setMemberForm(null)}
-          onSave={async (next) => {
-            const { isNew, isFounding, targetDot, ...rest } = next;
+          onSave={async (next, options) => {
+            const { isNew, isFounding, targetDot, shownDot, ...rest } = next;
             try {
-              await upsertMember(rest);
+              await upsertMember(rest, options);
             } catch (err) {
               window.alert(err.message || "Could not save this member.");
               return;
             }
             setMemberForm(null);
             setSelectedId(rest.id);
-            const dot = Number(rest.generation) || 0;
+            const dot = Number(shownDot) || 0;
             if (dot > 1) {
               setOpenGens((prev) => {
                 const next = new Set(prev);
@@ -855,7 +858,7 @@ function GoogleMark() {
   );
 }
 
-function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
+function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDots = {}, dotList = [] }) {
   const [form, setForm] = useState({
     spouseDob: "",
     relation: "",
@@ -866,6 +869,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
     Boolean(value?.relation && !RELATION_CHOICES.includes(value.relation))
   );
   const [unlockParent, setUnlockParent] = useState(false);
+  const [applyFamily, setApplyFamily] = useState(true);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const siblingSlots = nextBirthOrder(members, form.parentId, form.id);
   const childNumber = Math.min(
@@ -894,25 +898,38 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
       }
     }
   }
-  const dotOf = (m) => generationFromLineage(lineage[m.id], m, members);
+  const dotOf = (m) => displayDots[m.id] || generationFromLineage(lineage[m.id], m, members);
   const parentChoices = members
     .filter((m) => m.id !== form.id && !descendants.has(m.id))
-    .filter((m) => targetDot < 2 || m.id === form.parentId || dotOf(m) === targetDot - 1)
+    .filter((m) => targetDot < 2 || m.id === form.parentId || dotOf(m) < targetDot)
     .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
   const parentGroups = [];
   for (const m of parentChoices) {
     const dot = dotOf(m);
-    const group = parentGroups[parentGroups.length - 1];
-    if (group && group.dot === dot) group.people.push(m);
-    else parentGroups.push({ dot, people: [m] });
+    let group = parentGroups.find((g) => g.dot === dot);
+    if (!group) parentGroups.push((group = { dot, people: [] }));
+    group.people.push(m);
   }
   parentGroups.sort((a, b) => a.dot - b.dot);
   const selectedParent = members.find((m) => m.id === form.parentId) || null;
-  const placedDot = selectedParent
-    ? dotOf(selectedParent) + 1
+  const generation = selectedParent
+    ? generationFromLineage(lineage[selectedParent.id], selectedParent, members) + 1
     : form.isFounding || !form.isNew
       ? Number(form.generation) || 1
       : 0;
+  const autoDot = selectedParent
+    ? dotOf(selectedParent) + 1
+    : form.isFounding || !form.isNew
+      ? displayDots[form.id] || Number(form.generation) || 1
+      : 0;
+  const pinnedDot = Math.round(Number(form.dot)) || 0;
+  const shownDot = pinnedDot > autoDot ? pinnedDot : autoDot;
+  const lastDot = Math.max(autoDot, ...dotList.map(Number).filter(Number.isFinite));
+  const dotOptions = [];
+  for (let d = autoDot + 1; autoDot > 1 && d <= lastDot + 1; d += 1) dotOptions.push(d);
+  const siblings = selectedParent
+    ? members.filter((m) => m.parentId === selectedParent.id && m.id !== form.id)
+    : [];
   const parentLocked = Boolean(form.isNew && value?.parentId && !targetDot && !unlockParent);
   const relationSelectValue = customRelation
     ? "__custom__"
@@ -928,12 +945,14 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (needsParent && !selectedParent) return;
-          const generation = placedDot || 1;
-          onSave({
+          onSave(
+            {
             ...form,
             birthOrder: childNumber,
             photo: safeImageUrl(form.photo),
-            generation,
+            generation: generation || 1,
+            dot: shownDot > autoDot ? shownDot : "",
+            shownDot,
             gender: normalizeGender(form.gender),
             relation: String(form.relation || "").trim(),
             spouseDob: form.spouseDob || "",
@@ -941,7 +960,9 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
               form.branch ||
               form.relation ||
               (previewCode !== "—" ? `AD · ${previewCode}` : ""),
-          });
+            },
+            { familyDot: applyFamily && siblings.length > 0 }
+          );
         }}
       >
         <p className="kicker">Lineage</p>
@@ -952,16 +973,22 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
             <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
           </div>
           <div>
-            <span className="placement-label">Dot</span>
-            <strong>{placedDot ? `${placedDot}.` : "—"}</strong>
+            <span className="placement-label">Generation</span>
+            <strong>{generation || "—"}</strong>
+          </div>
+          <div>
+            <span className="placement-label">Shown in Dot</span>
+            <strong>{shownDot ? `${shownDot}.` : "—"}</strong>
           </div>
           <p className="placement-note">
             {selectedParent
               ? `Child of ${displayMemberName(selectedParent)}${
                   selectedParent.spouse ? ` & ${selectedParent.spouse}` : ""
-                } (Dot ${dotOf(selectedParent)}), so this member is placed in Dot ${placedDot}.`
+                } (Dot ${dotOf(selectedParent)}) · shown in Dot ${shownDot}${
+                  shownDot > autoDot ? " (chosen by Admin)" : ""
+                }.`
               : needsParent
-                ? "Choose the parent first. The Dot and number are calculated from that parent."
+                ? "Choose the parent first. The number and Dot are worked out from that parent."
                 : "Founding couple · Dot 1."}
           </p>
         </div>
@@ -997,6 +1024,10 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
                       parentId === (value?.parentId || "") && !value?.isNew
                         ? value.birthOrder
                         : nextBirthOrder(members, parentId, f.id),
+                    dot:
+                      parentId === (value?.parentId || "") && !value?.isNew
+                        ? value.dot || ""
+                        : familyDot(members, parentId, f.id) || targetDot || "",
                     branch: parent
                       ? `AD · ${lineage[parent.id] || parent.name}`
                       : "Dot 1 · Root",
@@ -1005,7 +1036,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
               >
                 <option value="">{needsParent ? "Choose a parent…" : "None (founding / Dot 1)"}</option>
                 {parentGroups.map((group) => (
-                  <optgroup key={group.dot} label={`Dot ${group.dot} parents → children in Dot ${group.dot + 1}`}>
+                  <optgroup key={group.dot} label={`Parents in Dot ${group.dot}`}>
                     {group.people.map((m) => (
                       <option key={m.id} value={m.id}>
                         {formatLineageLabel(lineage[m.id])} · {displayMemberName(m)}
@@ -1017,7 +1048,33 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
               </select>
               {targetDot > 1 && (
                 <span className="field-hint">
-                  Showing Dot {targetDot - 1} parents · the child joins that family in Dot {targetDot}
+                  Adding to Dot {targetDot} · choose the parent from any Dot above it
+                </span>
+              )}
+            </label>
+          )}
+          {selectedParent && autoDot > 1 && (
+            <label>
+              Show in Dot
+              <select
+                value={shownDot > autoDot ? String(shownDot) : ""}
+                onChange={(e) => set("dot", e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Automatic · Dot {autoDot} (under the parent)</option>
+                {dotOptions.map((d) => (
+                  <option key={d} value={String(d)}>
+                    Dot {d}
+                  </option>
+                ))}
+              </select>
+              {siblings.length > 0 && (
+                <span className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={applyFamily}
+                    onChange={(e) => setApplyFamily(e.target.checked)}
+                  />
+                  Move brothers &amp; sisters too ({siblings.length})
                 </span>
               )}
             </label>

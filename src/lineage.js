@@ -302,6 +302,43 @@ export function generationFromLineage(code, member, members = []) {
   return depth;
 }
 
+/**
+ * Dot container for each member. A child sits one Dot below its parent's Dot unless an
+ * Admin pinned it lower with `dot`; it can never sit above its parent.
+ */
+export function computeDisplayDots(members = []) {
+  const list = members.filter(Boolean);
+  const byId = Object.fromEntries(list.map((m) => [m.id, m]));
+  const root = findPrimaryRoot(list);
+  const spouse = findRootSpouse(list, root);
+  const out = {};
+  const visiting = new Set();
+  function dotOf(m) {
+    if (!m) return 1;
+    if (out[m.id]) return out[m.id];
+    if ((root && m.id === root.id) || (spouse && m.id === spouse.id)) return (out[m.id] = 1);
+    if (visiting.has(m.id)) return 2;
+    visiting.add(m.id);
+    const parent = byId[m.parentId];
+    const auto = parent ? dotOf(parent) + 1 : 2;
+    visiting.delete(m.id);
+    const pinned = Math.round(Number(m.dot));
+    return (out[m.id] = pinned > auto ? pinned : auto);
+  }
+  list.forEach(dotOf);
+  return out;
+}
+
+/** Dot pinned for a parent's existing children, so a new sibling joins the same container. */
+export function familyDot(members = [], parentId = "", excludeId = "") {
+  if (!parentId) return 0;
+  return members.reduce((best, m) => {
+    if (m.parentId !== parentId || m.id === excludeId) return best;
+    const pinned = Math.round(Number(m.dot)) || 0;
+    return pinned > best ? pinned : best;
+  }, 0);
+}
+
 export function generationFromCode(code, isRootCouple = false) {
   if (isRootCouple) return 1;
   const depth = lineageDepth(code);

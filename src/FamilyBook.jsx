@@ -82,6 +82,7 @@ export default function FamilyBook({
   members,
   byId,
   lineage,
+  displayDots = {},
   childrenOf,
   rootEntriesFor,
   selectedId,
@@ -177,6 +178,7 @@ export default function FamilyBook({
             members={members}
             byId={byId}
             lineage={lineage}
+            dot={displayDots[member.id]}
             childrenOf={childrenOf}
             isAdmin={isAdmin}
             onSelect={select}
@@ -378,6 +380,7 @@ function MemberPage({
   members,
   byId,
   lineage,
+  dot,
   childrenOf,
   isAdmin,
   onSelect,
@@ -410,7 +413,11 @@ function MemberPage({
         <div className="book-title">
           <p className="book-kicker">
             <span className="lineage-code">{formatLineageLabel(code)}</span>
-            <span>{gen === 1 ? "Generation 1 · Ultimate root" : `Generation ${gen}`}</span>
+            <span>
+              {gen === 1
+                ? "Generation 1 · Ultimate root"
+                : `Generation ${gen} · Dot ${dot || gen}`}
+            </span>
           </p>
           <h2 className="book-name">{name}</h2>
           {(relation || branch) && <p className="book-subtitle">{relation || branch}</p>}

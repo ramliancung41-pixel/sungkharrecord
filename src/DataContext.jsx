@@ -5,6 +5,7 @@ import { seedData } from "./data/seed";
 import { useAuth } from "./AuthContext";
 import {
   assignBirthOrders,
+  computeDisplayDots,
   computeLineageCodes,
   findPrimaryRoot,
   findRootSpouse,
@@ -31,8 +32,7 @@ export function normalizeDots(dots, members = []) {
     const n = typeof d === "object" ? Number(d.number ?? d.generation) : Number(d);
     if (Number.isFinite(n) && n > 0) set.add(n);
   }
-  for (const m of members) {
-    const n = Number(m.generation) || 1;
+  for (const n of Object.values(computeDisplayDots(members))) {
     if (n > 0) set.add(n);
   }
   if (set.size === 0) set.add(1);
@@ -188,7 +188,7 @@ export function DataProvider({ children }) {
         if (!Number.isFinite(gen) || gen < 1) {
           throw new Error("Invalid Dot number.");
         }
-        const occupied = (data.members || []).some((m) => Number(m.generation) === gen);
+        const occupied = Object.values(computeDisplayDots(data.members || [])).includes(gen);
         if (occupied) {
           throw new Error("Only empty Dots can be deleted. Remove members from this Dot first.");
         }
@@ -196,8 +196,8 @@ export function DataProvider({ children }) {
         await persist({ ...data, dots: current });
         return gen;
       },
-      async upsertMember(member) {
-        const members = [...data.members];
+      async upsertMember(member, { familyDot = false } = {}) {
+        let members = [...data.members];
         if (member.parentId && !members.some((m) => m.id === member.parentId)) {
           throw new Error("The chosen parent no longer exists. Pick the parent again.");
         }
@@ -210,6 +210,11 @@ export function DataProvider({ children }) {
         };
         if (idx >= 0) members[idx] = saved;
         else members.push(saved);
+        if (familyDot && saved.parentId) {
+          members = members.map((m) =>
+            m.parentId === saved.parentId && m.id !== saved.id ? { ...m, dot: saved.dot || "" } : m
+          );
+        }
         await persist({ ...data, members });
       },
       async deleteMember(id) {
