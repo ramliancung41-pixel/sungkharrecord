@@ -198,6 +198,9 @@ export function DataProvider({ children }) {
       },
       async upsertMember(member) {
         const members = [...data.members];
+        if (member.parentId && !members.some((m) => m.id === member.parentId)) {
+          throw new Error("The chosen parent no longer exists. Pick the parent again.");
+        }
         const idx = members.findIndex((m) => m.id === member.id);
         const slots = nextBirthOrder(members, member.parentId, member.id);
         const wanted = Math.round(Number(member.birthOrder)) || slots;
@@ -210,10 +213,12 @@ export function DataProvider({ children }) {
         await persist({ ...data, members });
       },
       async deleteMember(id) {
-        const members = data.members
-          .filter((m) => m.id !== id)
-          .map((m) => (m.parentId === id ? { ...m, parentId: "" } : m));
-        await persist({ ...data, members });
+        if (data.members.some((m) => m.parentId === id)) {
+          throw new Error(
+            "This member still has children. Move or remove the children first so they stay in the right family."
+          );
+        }
+        await persist({ ...data, members: data.members.filter((m) => m.id !== id) });
       },
     }),
     [data, live, status, isAdmin]

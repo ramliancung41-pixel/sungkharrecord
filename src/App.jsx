@@ -348,16 +348,23 @@ export default function App() {
     selectedId && byId[selectedId] ? selectedId : findPrimaryRoot(members)?.id || members[0]?.id || "";
 
   async function removeMember(member) {
+    if (childrenOf(member.id).length) {
+      window.alert(
+        `${displayMemberName(member)} still has children. Move or remove the children first so they stay in the right family.`
+      );
+      return;
+    }
     if (!window.confirm(`Remove ${displayMemberName(member) || "this member"} from the chronicle?`)) return;
-    await deleteMember(member.id);
-    if (member.id === selectedId) setSelectedId(member.parentId || "");
+    try {
+      await deleteMember(member.id);
+      if (member.id === selectedId) setSelectedId(member.parentId || "");
+    } catch (err) {
+      window.alert(err.message || "Could not remove this member.");
+    }
   }
 
   function addMemberToDot(gen) {
-    const candidates = members.filter(
-      (m) => generationFromLineage(lineage[m.id], m, members) === gen - 1
-    );
-    openNewMember(gen, candidates.length === 1 ? candidates[0].id : "", gen);
+    openNewMember(gen, "", gen);
   }
 
   async function removeDot(gen) {
@@ -706,9 +713,22 @@ export default function App() {
           onClose={() => setMemberForm(null)}
           onSave={async (next) => {
             const { isNew, isFounding, targetDot, ...rest } = next;
-            await upsertMember(rest);
+            try {
+              await upsertMember(rest);
+            } catch (err) {
+              window.alert(err.message || "Could not save this member.");
+              return;
+            }
             setMemberForm(null);
             setSelectedId(rest.id);
+            const dot = Number(rest.generation) || 0;
+            if (dot > 1) {
+              setOpenGens((prev) => {
+                const next = new Set(prev);
+                next.add(dot);
+                return next;
+              });
+            }
           }}
         />
       )}
@@ -845,6 +865,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
   const [customRelation, setCustomRelation] = useState(
     Boolean(value?.relation && !RELATION_CHOICES.includes(value.relation))
   );
+  const [unlockParent, setUnlockParent] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const siblingSlots = nextBirthOrder(members, form.parentId, form.id);
   const childNumber = Math.min(
@@ -873,15 +894,26 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
       }
     }
   }
+  const dotOf = (m) => generationFromLineage(lineage[m.id], m, members);
   const parentChoices = members
     .filter((m) => m.id !== form.id && !descendants.has(m.id))
-    .filter(
-      (m) =>
-        targetDot < 2 ||
-        m.id === form.parentId ||
-        generationFromLineage(lineage[m.id], m, members) === targetDot - 1
-    )
+    .filter((m) => targetDot < 2 || m.id === form.parentId || dotOf(m) === targetDot - 1)
     .sort((a, b) => compareLineageCodes(lineage[a.id], lineage[b.id]));
+  const parentGroups = [];
+  for (const m of parentChoices) {
+    const dot = dotOf(m);
+    const group = parentGroups[parentGroups.length - 1];
+    if (group && group.dot === dot) group.people.push(m);
+    else parentGroups.push({ dot, people: [m] });
+  }
+  parentGroups.sort((a, b) => a.dot - b.dot);
+  const selectedParent = members.find((m) => m.id === form.parentId) || null;
+  const placedDot = selectedParent
+    ? dotOf(selectedParent) + 1
+    : form.isFounding || !form.isNew
+      ? Number(form.generation) || 1
+      : 0;
+  const parentLocked = Boolean(form.isNew && value?.parentId && !targetDot && !unlockParent);
   const relationSelectValue = customRelation
     ? "__custom__"
     : RELATION_CHOICES.includes(form.relation || "")
@@ -895,10 +927,8 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          const parent = members.find((m) => m.id === form.parentId);
-          const generation = parent
-            ? (Number(parent.generation) || 1) + 1
-            : Number(form.generation) || 1;
+          if (needsParent && !selectedParent) return;
+          const generation = placedDot || 1;
           onSave({
             ...form,
             birthOrder: childNumber,
@@ -916,62 +946,82 @@ function MemberModal({ value, onClose, onSave, members, lineage = {} }) {
       >
         <p className="kicker">Lineage</p>
         <h2>{form.isNew ? "Add family member" : "Edit family member"}</h2>
-        <p className="lineage-preview">
-          Assigned automatically · <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
-          <span className="muted"> from parent and child number</span>
-        </p>
+        <div className="placement">
+          <div>
+            <span className="placement-label">Lineage number</span>
+            <strong>{formatLineageLabel(previewCode === "—" ? "" : previewCode) || "—"}</strong>
+          </div>
+          <div>
+            <span className="placement-label">Dot</span>
+            <strong>{placedDot ? `${placedDot}.` : "—"}</strong>
+          </div>
+          <p className="placement-note">
+            {selectedParent
+              ? `Child of ${displayMemberName(selectedParent)}${
+                  selectedParent.spouse ? ` & ${selectedParent.spouse}` : ""
+                } (Dot ${dotOf(selectedParent)}), so this member is placed in Dot ${placedDot}.`
+              : needsParent
+                ? "Choose the parent first. The Dot and number are calculated from that parent."
+                : "Founding couple · Dot 1."}
+          </p>
+        </div>
         <div className="grid-2">
           <label>
             Full name
             <input value={form.name} onChange={(e) => set("name", e.target.value)} required />
           </label>
-          <label>
-            Dot (generation)
-            <input
-              type="number"
-              min="1"
-              value={form.generation}
-              readOnly={Boolean(form.parentId)}
-              onChange={(e) => set("generation", e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Parent
-            <select
-              value={form.parentId}
-              required={needsParent}
-              onChange={(e) => {
-                const parentId = e.target.value;
-                const parent = members.find((m) => m.id === parentId);
-                setForm((f) => ({
-                  ...f,
-                  parentId,
-                  birthOrder:
-                    parentId === (value?.parentId || "") && !value?.isNew
-                      ? value.birthOrder
-                      : nextBirthOrder(members, parentId, f.id),
-                  generation: parent ? (Number(parent.generation) || 1) + 1 : f.generation,
-                  branch: parent
-                    ? `AD · ${lineage[parent.id] || parent.name}`
-                    : "Dot 1 · Root",
-                }));
-              }}
-            >
-              <option value="">{needsParent ? "Choose a parent…" : "None (founding / Dot 1)"}</option>
-              {parentChoices.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {formatLineageLabel(lineage[m.id]) || `Dot ${m.generation}`} · {m.name}
-                  {m.spouse ? ` & ${m.spouse}` : ""}
-                </option>
-              ))}
-            </select>
-            {targetDot > 1 && (
-              <span className="field-hint">
-                Showing Dot {targetDot - 1} parents · the child joins that family in Dot {targetDot}
-              </span>
-            )}
-          </label>
+          {parentLocked ? (
+            <div className="parent-locked">
+              <span className="parent-locked-label">Parent</span>
+              <strong>
+                {formatLineageLabel(lineage[selectedParent?.id])} {displayMemberName(selectedParent)}
+              </strong>
+              {selectedParent?.spouse && <span className="muted">& {selectedParent.spouse}</span>}
+              <button type="button" className="link" onClick={() => setUnlockParent(true)}>
+                Change parent
+              </button>
+            </div>
+          ) : (
+            <label>
+              Parent
+              <select
+                value={form.parentId}
+                required={needsParent}
+                onChange={(e) => {
+                  const parentId = e.target.value;
+                  const parent = members.find((m) => m.id === parentId);
+                  setForm((f) => ({
+                    ...f,
+                    parentId,
+                    birthOrder:
+                      parentId === (value?.parentId || "") && !value?.isNew
+                        ? value.birthOrder
+                        : nextBirthOrder(members, parentId, f.id),
+                    branch: parent
+                      ? `AD · ${lineage[parent.id] || parent.name}`
+                      : "Dot 1 · Root",
+                  }));
+                }}
+              >
+                <option value="">{needsParent ? "Choose a parent…" : "None (founding / Dot 1)"}</option>
+                {parentGroups.map((group) => (
+                  <optgroup key={group.dot} label={`Dot ${group.dot} parents → children in Dot ${group.dot + 1}`}>
+                    {group.people.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {formatLineageLabel(lineage[m.id])} · {displayMemberName(m)}
+                        {m.spouse ? ` & ${m.spouse}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {targetDot > 1 && (
+                <span className="field-hint">
+                  Showing Dot {targetDot - 1} parents · the child joins that family in Dot {targetDot}
+                </span>
+              )}
+            </label>
+          )}
           {form.parentId && (
             <label>
               Child number

@@ -2233,6 +2233,68 @@ code {
   color: var(--muted);
 }
 
+.placement {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.4rem 1.4rem;
+  align-items: end;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 180, 90, 0.4);
+  background: linear-gradient(180deg, rgba(212, 180, 90, 0.12), rgba(8, 10, 16, 0.4));
+  box-shadow: 0 0 18px rgba(212, 180, 90, 0.12);
+}
+
+.placement > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.placement-label,
+.parent-locked-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.placement strong {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--gold-2);
+}
+
+.placement-note {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.parent-locked {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  margin-bottom: 0.8rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 180, 90, 0.4);
+  background: rgba(212, 180, 90, 0.08);
+}
+
+.parent-locked strong {
+  color: var(--gold-2);
+}
+
+.parent-locked .link {
+  justify-self: start;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
 .field-hint {
   font-size: 0.74rem;
   color: var(--gold);
