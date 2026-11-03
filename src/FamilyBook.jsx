@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconBtn, IconPencil, IconPlus, IconTrash } from "./uiIcons";
 import {
   compareLineageCodes,
@@ -98,9 +99,18 @@ export default function FamilyBook({
   onAddMember,
   onDeleteDot,
   onFoundingSlot,
+  revealKey = 0,
 }) {
   const detailRef = useRef(null);
+  const sheetRef = useRef(null);
   const indexRef = useRef(null);
+  const touchRef = useRef(null);
+  const sheetHistory = useRef(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches
+  );
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [turn, setTurn] = useState("");
 
   const dots = useMemo(
     () =>
@@ -139,40 +149,105 @@ export default function FamilyBook({
   );
 
   const member = selectedId ? byId[selectedId] : null;
+  const showSheet = isMobile && sheetOpen && Boolean(member);
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     if (!selectedId) return;
-    detailRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+    if (detailRef.current) detailRef.current.scrollTop = 0;
+    if (sheetRef.current) sheetRef.current.scrollTop = 0;
     const entry = document.getElementById(`book-entry-${selectedId}`);
     const list = indexRef.current;
-    if (entry && list && !window.matchMedia(MOBILE_QUERY).matches) {
+    if (entry && list && !isMobile) {
       const top = entry.offsetTop - list.clientHeight / 2 + entry.clientHeight / 2;
       list.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
-  }, [selectedId]);
+  }, [selectedId, isMobile]);
 
-  function select(id) {
-    onSelect(id);
-    if (window.matchMedia(MOBILE_QUERY).matches) {
-      window.requestAnimationFrame(() => {
-        detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+  useEffect(() => {
+    if (!showSheet) return undefined;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    function onKey(e) {
+      if (e.key === "Escape") closeSheet();
     }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [showSheet]);
+
+  useEffect(() => {
+    function onPop() {
+      if (!sheetHistory.current) return;
+      sheetHistory.current = false;
+      setSheetOpen(false);
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (revealKey && isMobile) openSheet();
+  }, [revealKey]);
+
+  function openSheet() {
+    if (!sheetHistory.current) {
+      window.history.pushState({ sungkharSheet: true }, "");
+      sheetHistory.current = true;
+    }
+    setSheetOpen(true);
+  }
+
+  function closeSheet() {
+    const id = selectedId;
+    if (sheetHistory.current) {
+      sheetHistory.current = false;
+      window.history.back();
+    }
+    setSheetOpen(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`book-entry-${id}`)?.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function select(id, direction = "") {
+    if (!id) return;
+    setTurn(direction);
+    onSelect(id);
+    if (isMobile) openSheet();
   }
 
   const position = member ? reading.indexOf(member.id) : -1;
   const prevId = position > 0 ? reading[position - 1] : "";
   const nextId = position >= 0 && position < reading.length - 1 ? reading[position + 1] : "";
 
-  return (
-    <div className="book">
-      <article
-        ref={detailRef}
-        id="book-detail"
-        className={`book-page book-detail ${member ? genderClass(member.gender) : ""}`}
-        aria-live="polite"
-      >
-        {member ? (
+  function onTouchStart(e) {
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY, at: Date.now() };
+  }
+
+  function onTouchEnd(e) {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - start.at > 700) return;
+    if (dx < 0 && nextId) select(nextId, "next");
+    if (dx > 0 && prevId) select(prevId, "prev");
+  }
+
+  const pageContent = member ? (
+          <div key={member.id} className={`book-turn ${turn}`}>
           <MemberPage
             member={member}
             members={members}
@@ -190,14 +265,49 @@ export default function FamilyBook({
             pageNumber={position + 1}
             pageCount={reading.length}
           />
+          </div>
         ) : (
           <div className="book-blank">
             <p className="kicker">Sungkhar Tuanthu</p>
             <h2>Choose a name</h2>
             <p>Select any member from the family index to read their page.</p>
           </div>
-        )}
+        );
+
+  return (
+    <div className="book">
+      <article
+        ref={detailRef}
+        id="book-detail"
+        className={`book-page book-detail ${member ? genderClass(member.gender) : ""}`}
+        aria-live="polite"
+      >
+        {!showSheet && pageContent}
       </article>
+
+      {showSheet &&
+        createPortal(
+          <div className="book-sheet-back">
+            <article
+              ref={sheetRef}
+              className={`book-sheet book-detail ${genderClass(member.gender)}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${displayMemberName(member)} · member page`}
+              onTouchStart={onTouchStart}
+              onTouchEnd={onTouchEnd}
+            >
+              <div className="book-sheet-bar">
+                <button type="button" className="book-sheet-close" onClick={closeSheet}>
+                  ‹ Family index
+                </button>
+                <span className="book-sheet-hint">Swipe ‹ › to turn pages</span>
+              </div>
+              {pageContent}
+            </article>
+          </div>,
+          document.body
+        )}
 
       <div className="book-spine" aria-hidden="true" />
 
@@ -514,13 +624,23 @@ function MemberPage({
       </section>
 
       <footer className="book-pager">
-        <button type="button" className="btn ghost" disabled={!prevId} onClick={() => onSelect(prevId)}>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={!prevId}
+          onClick={() => onSelect(prevId, "prev")}
+        >
           ‹ Previous
         </button>
         <span className="book-folio">
           {pageNumber > 0 ? `Page ${pageNumber} of ${pageCount}` : ""}
         </span>
-        <button type="button" className="btn ghost" disabled={!nextId} onClick={() => onSelect(nextId)}>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={!nextId}
+          onClick={() => onSelect(nextId, "next")}
+        >
           Next ›
         </button>
       </footer>

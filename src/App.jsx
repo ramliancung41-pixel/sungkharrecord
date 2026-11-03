@@ -193,6 +193,7 @@ export default function App() {
   const [branchFilter, setBranchFilter] = useState("");
   const [openGens, setOpenGens] = useState(() => new Set([1, 2]));
   const [highlightId, setHighlightId] = useState("");
+  const [revealKey, setRevealKey] = useState(0);
 
   useEffect(() => {
     setOriginDraft(data.chronicle);
@@ -303,12 +304,12 @@ export default function App() {
       });
       setSelectedId(member.id);
       setHighlightId(member.id);
-      window.requestAnimationFrame(() => {
-        const mobile = window.matchMedia("(max-width: 900px)").matches;
-        document
-          .getElementById(mobile ? "book-detail" : "tree")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      setRevealKey((k) => k + 1);
+      if (!window.matchMedia("(max-width: 900px)").matches) {
+        window.requestAnimationFrame(() => {
+          document.getElementById("tree")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     },
     [displayDots]
   );
@@ -660,6 +661,7 @@ export default function App() {
           byId={byId}
           lineage={lineage}
           displayDots={displayDots}
+          revealKey={revealKey}
           childrenOf={childrenOf}
           rootEntriesFor={rootCoupleCards}
           selectedId={activeId}
