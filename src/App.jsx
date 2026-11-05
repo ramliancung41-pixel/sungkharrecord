@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useData } from "./DataContext";
 import MediaDrawer from "./AdminMediaPanel";
@@ -6,7 +6,12 @@ import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import FamilyBook from "./FamilyBook";
 import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
-import { safeImageUrl } from "./memberFormat";
+import {
+  describePhotoLink,
+  normalizePhotoUrl,
+  preparePortrait,
+  useMemberPhoto,
+} from "./memberPhotos";
 import {
   compareLineageCodes,
   computeDisplayDots,
@@ -872,7 +877,43 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
   );
   const [unlockParent, setUnlockParent] = useState(false);
   const [applyFamily, setApplyFamily] = useState(true);
+  const [photoChange, setPhotoChange] = useState(undefined);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [previewBroken, setPreviewBroken] = useState(false);
+  const fileRef = useRef(null);
+  const savedPhoto = useMemberPhoto(value);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const typedLink = normalizePhotoUrl(form.photo);
+  const linkChanged = typedLink !== normalizePhotoUrl(value?.photo);
+  const linkProblem = describePhotoLink(form.photo);
+  const linkPreview = previewBroken ? "" : typedLink;
+  const previewPhoto =
+    photoChange?.portrait ||
+    (photoChange === null || linkChanged ? linkPreview : savedPhoto || linkPreview);
+
+  async function applyPicture(source) {
+    setPhotoError("");
+    if (source instanceof File && source.size > 25 * 1024 * 1024) {
+      setPhotoError("This file is larger than 25 MB. Choose a smaller photo.");
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      setPhotoChange(await preparePortrait(source));
+      setPreviewBroken(false);
+    } catch (err) {
+      setPhotoError(err.message || "Could not use this photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function removePhoto() {
+    setPhotoChange(null);
+    setPhotoError("");
+    set("photo", "");
+  }
   const siblingSlots = nextBirthOrder(members, form.parentId, form.id);
   const childNumber = Math.min(
     Math.max(Math.round(Number(form.birthOrder)) || siblingSlots, 1),
@@ -951,7 +992,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
             {
             ...form,
             birthOrder: childNumber,
-            photo: safeImageUrl(form.photo),
+            photo: photoChange ? "" : typedLink,
             generation: generation || 1,
             dot: shownDot > autoDot ? shownDot : "",
             shownDot,
@@ -963,7 +1004,15 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
               form.relation ||
               (previewCode !== "—" ? `AD · ${previewCode}` : ""),
             },
-            { familyDot: applyFamily && siblings.length > 0 }
+            {
+              familyDot: applyFamily && siblings.length > 0,
+              photo:
+                photoChange !== undefined
+                  ? photoChange
+                  : linkChanged && value?.photoUpdatedAt
+                    ? null
+                    : undefined,
+            }
           );
         }}
       >
@@ -1164,18 +1213,62 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
           </label>
         </div>
         <div className="photo-field">
-          <label>
-            Profile photo URL
-            <input
-              type="url"
-              inputMode="url"
-              value={form.photo || ""}
-              onChange={(e) => set("photo", e.target.value)}
-              placeholder="https://… (image link)"
-            />
-          </label>
-          <div className="photo-field-preview" aria-hidden="true">
-            {safeImageUrl(form.photo) ? <img src={safeImageUrl(form.photo)} alt="" /> : <span>Photo</span>}
+          <div className="photo-field-preview">
+            {previewPhoto ? (
+              <img src={previewPhoto} alt="Profile photo preview" onError={() => setPreviewBroken(true)} />
+            ) : (
+              <span>Photo</span>
+            )}
+          </div>
+          <div className="photo-field-body">
+            <span className="photo-field-label">Profile photo</span>
+            <div className="photo-field-actions">
+              <button
+                type="button"
+                className="btn gold"
+                disabled={photoBusy}
+                onClick={() => fileRef.current?.click()}
+              >
+                {photoBusy ? "Preparing…" : previewPhoto ? "Change photo" : "Upload photo"}
+              </button>
+              {previewPhoto && (
+                <button type="button" className="btn ghost" disabled={photoBusy} onClick={removePhoto}>
+                  Remove
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) applyPicture(file);
+                }}
+              />
+            </div>
+            {photoError && <span className="field-error">{photoError}</span>}
+            <label className="photo-link">
+              Or paste an image link
+              <input
+                type="url"
+                inputMode="url"
+                value={form.photo || ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (/^data:image\//i.test(next.trim())) {
+                    set("photo", "");
+                    applyPicture(next.trim());
+                    return;
+                  }
+                  setPreviewBroken(false);
+                  set("photo", next);
+                }}
+                placeholder="https://… or a Google Drive share link"
+              />
+            </label>
+            {linkProblem && <span className="field-error">{linkProblem}</span>}
           </div>
         </div>
         <label>

@@ -14,8 +14,8 @@ import {
   genderClass,
   genderLabel,
   resolvedSpouseDob,
-  safeImageUrl,
 } from "./memberFormat";
+import { memberThumb, useMemberPhoto } from "./memberPhotos";
 
 const MOBILE_QUERY = "(max-width: 900px)";
 
@@ -32,17 +32,26 @@ function initials(name) {
 }
 
 function Portrait({ member, name, isAdmin, onEdit }) {
-  const src = safeImageUrl(member.photo);
+  const src = useMemberPhoto(member);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setFailed(false);
+    setLoaded(false);
   }, [src]);
 
   return (
-    <figure className={`book-portrait ${genderClass(member.gender)}`}>
+    <figure className={`book-portrait ${genderClass(member.gender)} ${src && !loaded ? "loading" : ""}`}>
       {src && !failed ? (
-        <img src={src} alt={`Portrait of ${name}`} loading="lazy" onError={() => setFailed(true)} />
+        <img
+          key={src.length > 200 ? `${member.id}:${member.photoUpdatedAt}` : src}
+          src={src}
+          alt={`Portrait of ${name}`}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
       ) : (
         <div className="book-portrait-empty" aria-label="No profile photo yet">
           <span className="book-portrait-initials">{initials(name)}</span>
@@ -465,6 +474,7 @@ function IndexEntry({ entry, lineage, members, active, hit, isAdmin, onSelect, o
     : [relation, spouse ? `Spouse ${spouse}` : ""].filter(Boolean).join(" · ");
   const hasBio = Boolean(String(m.bio || "").trim());
   const gen = generationFromLineage(code, m, members);
+  const thumb = memberThumb(m);
 
   return (
     <button
@@ -477,7 +487,10 @@ function IndexEntry({ entry, lineage, members, active, hit, isAdmin, onSelect, o
     >
       <span className="book-entry-code">{formatLineageLabel(code)}</span>
       <span className="book-entry-text">
-        <strong>{displayMemberName(m) || "Unnamed"}</strong>
+        <strong>
+          {thumb && <img className="book-entry-avatar" src={thumb} alt="" loading="lazy" />}
+          {displayMemberName(m) || "Unnamed"}
+        </strong>
         {sub && <small>{sub}</small>}
       </span>
       {hasBio && <span className="book-entry-note" title="Has biography" aria-label="Has biography" />}

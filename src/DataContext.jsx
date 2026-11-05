@@ -3,6 +3,7 @@ import { get, onValue, ref, update } from "firebase/database";
 import { db, isFirebaseConfigured } from "./firebase";
 import { seedData } from "./data/seed";
 import { useAuth } from "./AuthContext";
+import { deletePortrait, savePortrait } from "./memberPhotos";
 import {
   assignBirthOrders,
   computeDisplayDots,
@@ -196,7 +197,7 @@ export function DataProvider({ children }) {
         await persist({ ...data, dots: current });
         return gen;
       },
-      async upsertMember(member, { familyDot = false } = {}) {
+      async upsertMember(member, { familyDot = false, photo } = {}) {
         let members = [...data.members];
         if (member.parentId && !members.some((m) => m.id === member.parentId)) {
           throw new Error("The chosen parent no longer exists. Pick the parent again.");
@@ -208,6 +209,21 @@ export function DataProvider({ children }) {
           ...member,
           birthOrder: Math.min(Math.max(wanted, 1), slots) - 0.5,
         };
+        if (photo) {
+          const version = Date.now();
+          try {
+            await savePortrait(member.id, photo.portrait, version);
+          } catch (err) {
+            throw new Error(`The photo could not be saved: ${err.message || "permission denied"}`);
+          }
+          saved.photo = "";
+          saved.photoThumb = photo.thumb;
+          saved.photoUpdatedAt = version;
+        } else if (photo === null) {
+          await deletePortrait(member.id).catch(() => {});
+          saved.photoThumb = "";
+          saved.photoUpdatedAt = "";
+        }
         if (idx >= 0) members[idx] = saved;
         else members.push(saved);
         if (familyDot && saved.parentId) {
@@ -224,6 +240,7 @@ export function DataProvider({ children }) {
           );
         }
         await persist({ ...data, members: data.members.filter((m) => m.id !== id) });
+        await deletePortrait(id).catch(() => {});
       },
     }),
     [data, live, status, isAdmin]
