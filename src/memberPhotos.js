@@ -121,6 +121,25 @@ export async function preparePortrait(source) {
   return { portrait, thumb };
 }
 
+/** Landscape 16:9 cover for an article, kept small enough to live inside the article record. */
+export async function prepareCover(source) {
+  const src = typeof source === "string" ? source : await readFile(source);
+  const img = await loadImage(src);
+  let width = 1120;
+  let quality = 0.8;
+  let cover = "";
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    cover = draw(img, width, Math.round((width * 9) / 16), coverCrop(img, 16 / 9)).toDataURL(
+      "image/jpeg",
+      quality
+    );
+    if (cover.length <= 180_000) break;
+    width = Math.round(width * 0.82);
+    quality = Math.max(0.58, quality - 0.06);
+  }
+  return cover;
+}
+
 export async function savePortrait(memberId, portrait, version) {
   primePhoto(memberId, version, portrait);
   if (!isFirebaseConfigured) return;

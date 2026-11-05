@@ -5,6 +5,7 @@ import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import FamilyBook from "./FamilyBook";
+import ArticlesSection from "./Articles";
 import { IconBtn, IconDove, IconPencil, IconTrash } from "./uiIcons";
 import { isDeceased } from "./memberFormat";
 import {
@@ -455,6 +456,7 @@ export default function App() {
           <a href="#origin">Origin</a>
           <a href="#timeline">Timeline</a>
           <a href="#tree">Family tree</a>
+          <a href="#carelnak">Carelnak</a>
           <a href="#media">Media</a>
         </nav>
         <div className="nav-end">
@@ -686,9 +688,26 @@ export default function App() {
         />
       </section>
 
+      <ArticlesSection />
+
       <section className="panel" id="media">
         <MediaGallery />
       </section>
+
+      <nav className="tabbar" aria-label="Sections">
+        <a href="#tree">
+          <span aria-hidden="true">✦</span>Family tree
+        </a>
+        <a href="#carelnak">
+          <span aria-hidden="true">❦</span>Carelnak
+        </a>
+        <a href="#media">
+          <span aria-hidden="true">▶</span>Media
+        </a>
+        <a href="#timeline">
+          <span aria-hidden="true">◷</span>History
+        </a>
+      </nav>
 
       <footer className="foot">
         <div className="foot-seal" aria-hidden="true">

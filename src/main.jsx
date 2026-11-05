@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import { AuthProvider } from "./AuthContext.jsx";
 import { DataProvider } from "./DataContext.jsx";
 import { MediaProvider } from "./MediaContext.jsx";
+import { ArticlesProvider } from "./ArticlesContext.jsx";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -11,7 +12,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <AuthProvider>
       <DataProvider>
         <MediaProvider>
-          <App />
+          <ArticlesProvider>
+            <App />
+          </ArticlesProvider>
         </MediaProvider>
       </DataProvider>
     </AuthProvider>
