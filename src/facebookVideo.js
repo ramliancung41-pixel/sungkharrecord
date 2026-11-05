@@ -40,6 +40,10 @@ export function describeFacebookLink(raw) {
   const parts = url.pathname.split("/").filter(Boolean);
   const first = (parts[0] || "").toLowerCase();
 
+  if (first === "login" && url.searchParams.get("next")) {
+    const inner = describeFacebookLink(url.searchParams.get("next"));
+    if (inner) return inner;
+  }
   if (/fb\.watch$/i.test(url.hostname)) return { kind: "share", href: url.href };
   if (first === "share") return { kind: "share", href: canonical(url) };
   if (first === "groups") return { kind: "group", href: canonical(url) };

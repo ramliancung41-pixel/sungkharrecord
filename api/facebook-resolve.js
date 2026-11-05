@@ -10,8 +10,16 @@ function allowed(raw) {
   }
 }
 
-function clean(href) {
+/** Facebook sometimes bounces anonymous requests to /login/?next=<real page>; unwrap that. */
+function unwrapLogin(href) {
   const url = new URL(href);
+  if (!/^\/login/i.test(url.pathname)) return href;
+  const next = url.searchParams.get("next");
+  return next && allowed(next) ? next : href;
+}
+
+function clean(href) {
+  const url = new URL(unwrapLogin(href));
   for (const key of ["rdid", "share_url", "_rdc", "_rdr", "mibextid", "ref"]) url.searchParams.delete(key);
   return url.href;
 }
@@ -35,6 +43,7 @@ export default async function handler(req, res) {
       const next = allowed(new URL(location, current).href);
       if (!next) break;
       current = next.href;
+      if (/^\/login/i.test(next.pathname)) break;
     }
   } catch {
     res.status(502).json({ error: "Facebook could not be reached." });
