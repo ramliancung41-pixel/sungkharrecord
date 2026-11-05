@@ -1,6 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMedia } from "./MediaContext";
 import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
+import {
+  describeFacebookLink,
+  facebookEmbedSrc,
+  facebookLinkHint,
+  isFacebookUrl,
+  resolveFacebookLink,
+} from "./facebookVideo";
 
 const TABS = [
   { id: "all", label: "All" },
@@ -59,7 +67,97 @@ function PlayGlyph() {
   );
 }
 
+function FacebookGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M13.4 21v-7.3h2.5l.4-2.9h-2.9V9c0-.8.3-1.4 1.4-1.4h1.6V5c-.3 0-1.2-.1-2.3-.1-2.3 0-3.8 1.4-3.8 3.9v2.1H7.7v2.9h2.6V21h3.1Z"
+      />
+    </svg>
+  );
+}
+
+const FALLBACK_TEXT = {
+  group:
+    "This video was shared in a Facebook group. Facebook only lets group videos play on Facebook itself.",
+  unsupported: "This Facebook link is not a video that can be played here.",
+  failed:
+    "This Facebook link could not be opened here. The video may be private or removed, or Facebook blocked it.",
+};
+
+function FacebookFallback({ url, reason }) {
+  return (
+    <div className="video-fallback">
+      <span className="video-fallback-mark">
+        <FacebookGlyph />
+      </span>
+      <p>{FALLBACK_TEXT[reason] || FALLBACK_TEXT.failed}</p>
+      <a className="btn gold" href={url} target="_blank" rel="noreferrer">
+        Watch on Facebook ↗
+      </a>
+    </div>
+  );
+}
+
+function FacebookPlayer({ item }) {
+  const source = item.resolvedUrl || item.url;
+  const [info, setInfo] = useState(() => describeFacebookLink(source));
+  const [resolving, setResolving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const first = describeFacebookLink(source);
+    setInfo(first);
+    if (first?.kind !== "share") return undefined;
+    setResolving(true);
+    resolveFacebookLink(source).then((resolved) => {
+      if (cancelled) return;
+      const next = resolved ? describeFacebookLink(resolved) : null;
+      setInfo(next && next.kind !== "share" ? next : { kind: "failed", href: source });
+      setResolving(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
+
+  if (resolving) {
+    return (
+      <div className="video-frame loading">
+        <span>Finding the video on Facebook…</span>
+      </div>
+    );
+  }
+
+  const src = facebookEmbedSrc(info);
+  if (!src) return <FacebookFallback url={item.url} reason={info?.kind} />;
+
+  return (
+    <>
+      <div className={`video-frame fb ${info.vertical ? "vertical" : ""} ${info.kind === "post" ? "post" : ""}`}>
+        <iframe
+          title={item.title}
+          src={src}
+          loading="lazy"
+          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      </div>
+      <p className="video-help">
+        Not playing? The video may be private on Facebook.{" "}
+        <a href={item.url} target="_blank" rel="noreferrer">
+          Watch on Facebook ↗
+        </a>
+      </p>
+    </>
+  );
+}
+
 function MediaPreviewBody({ item }) {
+  if (isFacebookUrl(item.url) || isFacebookUrl(item.resolvedUrl)) {
+    return <FacebookPlayer item={item} />;
+  }
   if (item.type === "image") {
     return <img src={item.url} alt={item.title} />;
   }
@@ -76,23 +174,27 @@ function MediaPreviewBody({ item }) {
   const yt = youtubeId(item.url);
   if (yt) {
     return (
-      <iframe
-        title={item.title}
-        src={`https://www.youtube.com/embed/${yt}`}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
+      <div className="video-frame">
+        <iframe
+          title={item.title}
+          src={`https://www.youtube.com/embed/${yt}`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
     );
   }
   const vim = vimeoId(item.url);
   if (vim) {
     return (
-      <iframe
-        title={item.title}
-        src={`https://player.vimeo.com/video/${vim}`}
-        allow="autoplay; fullscreen; picture-in-picture"
-        allowFullScreen
-      />
+      <div className="video-frame">
+        <iframe
+          title={item.title}
+          src={`https://player.vimeo.com/video/${vim}`}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
     );
   }
   return <video src={item.url} controls playsInline />;
@@ -114,6 +216,23 @@ function RichThumb({ item }) {
 
   const showImage = Boolean(poster) && !broken;
   const kind = item.type || "image";
+
+  if (isFacebookUrl(item.url)) {
+    return (
+      <div className="rich-thumb kind-video fb-thumb">
+        <div className="rich-thumb-fallback" aria-hidden="true">
+          <span className="fb-thumb-mark">
+            <FacebookGlyph />
+          </span>
+        </div>
+        <div className="rich-thumb-shade" />
+        <span className="rich-play" aria-hidden="true">
+          <PlayGlyph />
+        </span>
+        <span className="rich-badge video">facebook</span>
+      </div>
+    );
+  }
 
   return (
     <div className={`rich-thumb kind-${kind}`}>
@@ -161,6 +280,8 @@ export default function MediaGallery({ compact = false }) {
   const [editId, setEditId] = useState("");
   const [localError, setLocalError] = useState("");
   const [preview, setPreview] = useState(null);
+  const [resolvingLink, setResolvingLink] = useState(false);
+  const fbHint = facebookLinkHint(url);
 
   const filtered = useMemo(() => {
     if (tab === "all") return items;
@@ -195,13 +316,21 @@ export default function MediaGallery({ compact = false }) {
     e.preventDefault();
     setLocalError("");
     try {
+      let resolvedUrl = "";
+      if (describeFacebookLink(url)?.kind === "share") {
+        setResolvingLink(true);
+        resolvedUrl = await resolveFacebookLink(url);
+        setResolvingLink(false);
+      }
+      const payload = { url, title, type: isFacebookUrl(url) ? "video" : type, resolvedUrl };
       if (editId) {
-        await updateMediaLink(editId, { url, title, type });
+        await updateMediaLink(editId, payload);
       } else {
-        await addMediaLink({ url, title, type });
+        await addMediaLink(payload);
       }
       resetForm();
     } catch (err) {
+      setResolvingLink(false);
       setLocalError(err.message || "Could not save link");
     }
   }
@@ -257,12 +386,20 @@ export default function MediaGallery({ compact = false }) {
             <input
               type="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (isFacebookUrl(e.target.value)) setType("video");
+              }}
+              placeholder="https://… (YouTube, Facebook, Vimeo, image or MP3 link)"
               required
               disabled={saving}
             />
           </label>
+          {fbHint && (
+            <p className={`fb-hint ${describeFacebookLink(url)?.kind === "unsupported" ? "warn" : ""}`}>
+              <FacebookGlyph /> {fbHint}
+            </p>
+          )}
 
           {livePreview && (
             <div className="link-live-preview">
@@ -278,8 +415,14 @@ export default function MediaGallery({ compact = false }) {
           )}
 
           <div className="row">
-            <button className="btn gold" type="submit" disabled={saving}>
-              {saving ? "Saving…" : editId ? "Update link" : "Save link"}
+            <button className="btn gold" type="submit" disabled={saving || resolvingLink}>
+              {resolvingLink
+                ? "Checking Facebook link…"
+                : saving
+                  ? "Saving…"
+                  : editId
+                    ? "Update link"
+                    : "Save link"}
             </button>
           </div>
           {(localError || error) && <p className="error">{localError || error}</p>}
@@ -364,7 +507,7 @@ export default function MediaGallery({ compact = false }) {
         ))}
       </div>
 
-      {preview && (
+      {preview && createPortal(
         <div className="media-preview-back" onClick={() => setPreview(null)}>
           <div className="media-preview glass" onClick={(e) => e.stopPropagation()}>
             <div className="panel-head">
@@ -402,7 +545,8 @@ export default function MediaGallery({ compact = false }) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -34,7 +34,7 @@ function guessKindFromUrl(url) {
   if (/\.(png|jpe?g|gif|webp|avif|svg)$/.test(path)) return "image";
   if (/\.(mp4|webm|ogg|mov|m4v)$/.test(path)) return "video";
   if (/\.(mp3|wav|m4a|aac|ogg)$/.test(path)) return "audio";
-  if (/youtube\.com|youtu\.be|vimeo\.com/.test(url)) return "video";
+  if (/youtube\.com|youtu\.be|vimeo\.com|facebook\.com|fb\.watch/.test(url)) return "video";
   return "";
 }
 
@@ -69,7 +69,7 @@ export function MediaProvider({ children }) {
       saving,
       error,
       isAdmin,
-      async addMediaLink({ url, title = "", type = "" }) {
+      async addMediaLink({ url, title = "", type = "", resolvedUrl = "" }) {
         setError("");
         if (!isAdmin) throw new Error("Only an Admin can add media links.");
         if (!isFirebaseConfigured) throw new Error("Firebase is not configured.");
@@ -87,6 +87,7 @@ export function MediaProvider({ children }) {
           name: href,
           type: kind,
           url: href,
+          resolvedUrl: normalizeUrl(resolvedUrl),
           createdAt: Date.now(),
           uploadedAt: Date.now(),
           uploadedBy: user?.email || "",
@@ -104,7 +105,7 @@ export function MediaProvider({ children }) {
           setSaving(false);
         }
       },
-      async updateMediaLink(id, { url, title = "", type = "" }) {
+      async updateMediaLink(id, { url, title = "", type = "", resolvedUrl = "" }) {
         setError("");
         if (!isAdmin) throw new Error("Only an Admin can edit media links.");
         if (!isFirebaseConfigured) throw new Error("Firebase is not configured.");
@@ -122,6 +123,7 @@ export function MediaProvider({ children }) {
             name: href,
             type: kind,
             url: href,
+            resolvedUrl: normalizeUrl(resolvedUrl),
             updatedAt: Date.now(),
             updatedBy: user?.email || "",
           });
