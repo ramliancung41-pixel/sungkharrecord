@@ -5,7 +5,8 @@ import MediaDrawer from "./AdminMediaPanel";
 import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import FamilyBook from "./FamilyBook";
-import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
+import { IconBtn, IconDove, IconPencil, IconTrash } from "./uiIcons";
+import { isDeceased } from "./memberFormat";
 import {
   describePhotoLink,
   normalizePhotoUrl,
@@ -884,6 +885,7 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
   const fileRef = useRef(null);
   const savedPhoto = useMemberPhoto(value);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const deceased = form.deceased === true || (form.deceased !== false && isDeceased(form));
   const typedLink = normalizePhotoUrl(form.photo);
   const linkChanged = typedLink !== normalizePhotoUrl(value?.photo);
   const linkProblem = describePhotoLink(form.photo);
@@ -992,6 +994,8 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
             {
             ...form,
             birthOrder: childNumber,
+            deceased,
+            dod: deceased ? form.dod || "" : "",
             photo: photoChange ? "" : typedLink,
             generation: generation || 1,
             dot: shownDot > autoDot ? shownDot : "",
@@ -1191,10 +1195,24 @@ function MemberModal({ value, onClose, onSave, members, lineage = {}, displayDot
             Date of birth
             <input type="date" value={form.dob || ""} onChange={(e) => set("dob", e.target.value)} />
           </label>
-          <label>
-            Date of departure
-            <input type="date" value={form.dod || ""} onChange={(e) => set("dod", e.target.value)} />
-          </label>
+          <div className="memorial-field">
+            <label className="check-row memorial-toggle">
+              <input
+                type="checkbox"
+                checked={deceased}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, deceased: e.target.checked, dod: e.target.checked ? f.dod : "" }))
+                }
+              />
+              <IconDove size={16} /> Passed away · in loving memory
+            </label>
+            {deceased && (
+              <label>
+                Date of departure
+                <input type="date" value={form.dod || ""} onChange={(e) => set("dod", e.target.value)} />
+              </label>
+            )}
+          </div>
           <label>
             Spouse
             <input value={form.spouse || ""} onChange={(e) => set("spouse", e.target.value)} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconBtn, IconPencil, IconPlus, IconTrash } from "./uiIcons";
+import { IconBtn, IconDove, IconFlower, IconPencil, IconPlus, IconTrash } from "./uiIcons";
 import {
   compareLineageCodes,
   displayMemberName,
@@ -13,6 +13,8 @@ import {
   formatDate,
   genderClass,
   genderLabel,
+  isDeceased,
+  lifeYears,
   resolvedSpouseDob,
 } from "./memberFormat";
 import { memberThumb, useMemberPhoto } from "./memberPhotos";
@@ -42,7 +44,16 @@ function Portrait({ member, name, isAdmin, onEdit }) {
   }, [src]);
 
   return (
-    <figure className={`book-portrait ${genderClass(member.gender)} ${src && !loaded ? "loading" : ""}`}>
+    <figure
+      className={`book-portrait ${genderClass(member.gender)} ${src && !loaded ? "loading" : ""} ${
+        isDeceased(member) ? "memorial" : ""
+      }`}
+    >
+      {isDeceased(member) && (
+        <span className="book-portrait-flower" title="Pangpar · in loving memory">
+          <IconFlower size={18} />
+        </span>
+      )}
       {src && !failed ? (
         <img
           key={src.length > 200 ? `${member.id}:${member.photoUpdatedAt}` : src}
@@ -493,7 +504,14 @@ function IndexEntry({ entry, lineage, members, active, hit, isAdmin, onSelect, o
         </strong>
         {sub && <small>{sub}</small>}
       </span>
-      {hasBio && <span className="book-entry-note" title="Has biography" aria-label="Has biography" />}
+      <span className="book-entry-marks">
+        {isDeceased(m) && (
+          <span className="book-entry-memorial" title="In loving memory · Vate rang" aria-label="In loving memory">
+            <IconDove size={17} />
+          </span>
+        )}
+        {hasBio && <span className="book-entry-note" title="Has biography" aria-label="Has biography" />}
+      </span>
     </button>
   );
 }
@@ -544,6 +562,18 @@ function MemberPage({
           </p>
           <h2 className="book-name">{name}</h2>
           {(relation || branch) && <p className="book-subtitle">{relation || branch}</p>}
+          {isDeceased(member) && (
+            <p className="memorial-line">
+              <span className="memorial-icon" title="Vate rang">
+                <IconDove size={19} />
+              </span>
+              <span>In loving memory</span>
+              {lifeYears(member) && <span className="memorial-years">{lifeYears(member)}</span>}
+              <span className="memorial-icon" title="Pangpar">
+                <IconFlower size={19} />
+              </span>
+            </p>
+          )}
           {isAdmin && (
             <div className="book-admin" role="group" aria-label="Admin actions">
               <IconBtn label="Edit member" onClick={() => onEdit(member)}>
@@ -565,10 +595,10 @@ function MemberPage({
           <dt>Born</dt>
           <dd>{formatDate(member.dob)}</dd>
         </div>
-        {member.dod && (
+        {isDeceased(member) && (
           <div>
             <dt>Departed</dt>
-            <dd>{formatDate(member.dod)}</dd>
+            <dd>{member.dod ? formatDate(member.dod) : "Date not recorded"}</dd>
           </div>
         )}
         <div>

@@ -365,6 +365,7 @@ export function memberSearchHaystack(member, code) {
       member.relation,
       member.bio,
       member.gender,
+      member.deceased === true || member.dod ? "memorial deceased passed away" : "",
       code,
       formatLineageLabel(code),
       `dot ${member.generation}`,

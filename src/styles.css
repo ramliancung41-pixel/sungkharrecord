@@ -2496,6 +2496,98 @@ label .check-row input {
   }
 }
 
+.book-entry-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.book-entry-memorial {
+  display: inline-grid;
+  place-items: center;
+  color: #e9e2cf;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 5px rgba(240, 212, 138, 0.45));
+}
+
+.memorial-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 212, 138, 0.38);
+  background: linear-gradient(90deg, rgba(212, 180, 90, 0.12), rgba(8, 10, 16, 0.3));
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
+.memorial-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--gold-2);
+  filter: drop-shadow(0 0 6px rgba(240, 212, 138, 0.5));
+}
+
+.memorial-years {
+  font-family: Outfit, system-ui, sans-serif;
+  font-style: normal;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.book-portrait.memorial img {
+  filter: grayscale(0.35) sepia(0.12);
+}
+
+.book-portrait-flower {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 212, 138, 0.6);
+  background: rgba(8, 10, 16, 0.75);
+  color: var(--gold-2);
+  box-shadow: 0 0 10px rgba(212, 180, 90, 0.35);
+}
+
+.memorial-field {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  margin-bottom: 0.8rem;
+}
+
+.memorial-field .check-row svg {
+  color: var(--gold-2);
+}
+
+label.memorial-toggle {
+  display: flex;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 180, 90, 0.3);
+  background: rgba(212, 180, 90, 0.06);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+label.memorial-toggle input {
+  width: auto;
+  accent-color: var(--gold);
+}
+
 .book-entry-avatar {
   width: 1.6rem;
   height: 1.6rem;

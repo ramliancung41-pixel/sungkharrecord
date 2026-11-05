@@ -16,6 +16,23 @@ export function genderClass(gender) {
   return g;
 }
 
+/** Deceased when an Admin ticked "Passed away" or a date of departure is recorded. */
+export function isDeceased(member) {
+  return member?.deceased === true || Boolean(String(member?.dod || "").trim());
+}
+
+function yearOf(value) {
+  const match = String(value || "").match(/\d{4}/);
+  return match ? match[0] : "";
+}
+
+export function lifeYears(member) {
+  const born = yearOf(member?.dob);
+  const died = yearOf(member?.dod);
+  if (!born && !died) return "";
+  return `${born || "?"} – ${died || "?"}`;
+}
+
 export function genderLabel(gender) {
   const g = genderClass(gender);
   if (g === "male") return "Male · Pa";
