@@ -1,26 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ARTICLE_CATEGORIES, useArticles } from "./ArticlesContext";
-import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
+﻿import { useEffect, useRef, useState } from "react";
+import { ARTICLE_CATEGORIES } from "./ArticlesContext";
 import { normalizePhotoUrl, prepareCover, describePhotoLink } from "./memberPhotos";
 
-const HASH = /^#carelnak\/([\w-]+)$/;
-
-function categoryLabel(id) {
+export function categoryLabel(id) {
   return ARTICLE_CATEGORIES.find((c) => c.id === id)?.label || "Family story";
 }
 
-function formatDay(ts) {
+export function formatDay(ts) {
   if (!ts) return "";
   return new Date(ts).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
-function readingMinutes(body) {
+export function readingMinutes(body) {
   const words = String(body || "").split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }
 
-function excerpt(article, length = 180) {
+export function excerpt(article, length = 180) {
   const text = article.summary || String(article.body || "").replace(/^[#>-]+\s*/gm, "").replace(/\*\*|__|\*|_/g, "");
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > length ? `${flat.slice(0, length).replace(/\s\S*$/, "")}…` : flat;
@@ -52,7 +48,7 @@ function renderInline(text, keyBase) {
   return nodes;
 }
 
-function ArticleBody({ body }) {
+export function ArticleBody({ body }) {
   const blocks = String(body || "")
     .split(/\n{2,}/)
     .map((b) => b.trim())
@@ -99,7 +95,7 @@ function ArticleBody({ body }) {
   );
 }
 
-function Cover({ src, alt, className = "" }) {
+export function Cover({ src, alt, className = "" }) {
   const url = String(src || "").startsWith("data:image/") ? src : normalizePhotoUrl(src);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [url]);
@@ -117,12 +113,18 @@ function Cover({ src, alt, className = "" }) {
   );
 }
 
-function ArticleCard({ article, featured = false, draft = false, onOpen }) {
+export function ArticleCard({ article, featured = false, draft = false, onOpen }) {
   return (
-    <button
-      type="button"
-      className={`article-card ${featured ? "featured" : ""} ${draft ? "draft" : ""}`}
-      onClick={() => onOpen(article)}
+    <a
+      href={`/carelnak/${article.id}`}
+      className={`article-card ${featured ? "featured" : ""} ${draft ? "draft" : ""} ${
+        article.cover ? "" : "no-cover"
+      }`}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        e.preventDefault();
+        onOpen(article);
+      }}
     >
       <Cover src={article.cover} alt="" />
       <span className="article-card-body">
@@ -137,250 +139,11 @@ function ArticleCard({ article, featured = false, draft = false, onOpen }) {
           <span>{readingMinutes(article.body)} min read</span>
         </span>
       </span>
-    </button>
+    </a>
   );
 }
 
-export default function ArticlesSection() {
-  const { published, drafts, loaded, isAdmin, saveArticle, deleteArticle } = useArticles();
-  const [category, setCategory] = useState("all");
-  const [openId, setOpenId] = useState(() => window.location.hash.match(HASH)?.[1] || "");
-  const [editing, setEditing] = useState(null);
-  const openedHere = useRef(false);
-
-  useEffect(() => {
-    function onHash() {
-      setOpenId(window.location.hash.match(HASH)?.[1] || "");
-    }
-    window.addEventListener("hashchange", onHash);
-    window.addEventListener("popstate", onHash);
-    return () => {
-      window.removeEventListener("hashchange", onHash);
-      window.removeEventListener("popstate", onHash);
-    };
-  }, []);
-
-  const visible = useMemo(
-    () => (category === "all" ? published : published.filter((a) => a.category === category)),
-    [published, category]
-  );
-  const all = useMemo(() => [...published, ...(isAdmin ? drafts : [])], [published, drafts, isAdmin]);
-  const open = openId ? all.find((a) => a.id === openId) : null;
-
-  function openArticle(article) {
-    openedHere.current = true;
-    window.history.pushState(null, "", `#carelnak/${article.id}`);
-    setOpenId(article.id);
-  }
-
-  function closeArticle() {
-    if (openedHere.current) {
-      openedHere.current = false;
-      window.history.back();
-    } else {
-      window.history.replaceState(null, "", "#carelnak");
-    }
-    setOpenId("");
-  }
-
-  const [featured, ...rest] = visible;
-
-  return (
-    <section className="panel articles" id="carelnak">
-      <div className="panel-head wrap">
-        <div>
-          <p className="kicker">Carelnak · Articles</p>
-          <h2>Family stories &amp; records</h2>
-        </div>
-        {isAdmin && (
-          <button className="btn gold" type="button" onClick={() => setEditing({ category: "story" })}>
-            New article
-          </button>
-        )}
-      </div>
-      <p className="hint">
-        Stories, news, and historical records of the Sungkhar house.{" "}
-        {isAdmin ? "As Admin you can write, edit, and publish articles." : "Only Admins can publish articles."}
-      </p>
-
-      <div className="article-filters" role="tablist" aria-label="Article categories">
-        {[{ id: "all", label: "All" }, ...ARTICLE_CATEGORIES].map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            role="tab"
-            aria-selected={category === c.id}
-            className={`media-tab ${category === c.id ? "active" : ""}`}
-            onClick={() => setCategory(c.id)}
-          >
-            {c.label}
-            <em>{c.id === "all" ? published.length : published.filter((a) => a.category === c.id).length}</em>
-          </button>
-        ))}
-      </div>
-
-      {isAdmin && drafts.length > 0 && (
-        <div className="article-drafts">
-          <p className="kicker">Drafts · only Admins can see these</p>
-          <div className="article-grid">
-            {drafts.map((a) => (
-              <ArticleCard key={a.id} article={a} draft onOpen={openArticle} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!loaded ? (
-        <div className="article-empty glass">Loading articles…</div>
-      ) : !visible.length ? (
-        <div className="article-empty glass">
-          {published.length
-            ? "No articles in this category yet."
-            : isAdmin
-              ? "No articles yet. Press “New article” to write the first family story."
-              : "No articles have been published yet."}
-        </div>
-      ) : (
-        <>
-          <ArticleCard article={featured} featured onOpen={openArticle} />
-          {rest.length > 0 && (
-            <div className="article-grid">
-              {rest.map((a) => (
-                <ArticleCard key={a.id} article={a} onOpen={openArticle} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {open &&
-        createPortal(
-          <ArticleReader
-            article={open}
-            list={visible.some((a) => a.id === open.id) ? visible : all}
-            isAdmin={isAdmin}
-            isDraft={!published.some((a) => a.id === open.id)}
-            onClose={closeArticle}
-            onOpen={(a) => {
-              window.history.replaceState(null, "", `#carelnak/${a.id}`);
-              setOpenId(a.id);
-            }}
-            onEdit={() => setEditing(open)}
-            onDelete={async () => {
-              if (!window.confirm(`Delete “${open.title}”? This cannot be undone.`)) return;
-              try {
-                await deleteArticle(open);
-                closeArticle();
-              } catch (err) {
-                window.alert(err.message || "Could not delete the article.");
-              }
-            }}
-          />,
-          document.body
-        )}
-
-      {editing &&
-        isAdmin &&
-        createPortal(
-          <ArticleEditor
-            value={editing}
-            isPublished={published.some((a) => a.id === editing.id)}
-            onClose={() => setEditing(null)}
-            onSave={async (draft, publish) => {
-              const saved = await saveArticle(draft, { publish });
-              setEditing(null);
-              if (publish) openArticle(saved);
-            }}
-          />,
-          document.body
-        )}
-    </section>
-  );
-}
-
-function ArticleReader({ article, list, isAdmin, isDraft, onClose, onOpen, onEdit, onDelete }) {
-  const pageRef = useRef(null);
-
-  useEffect(() => {
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = overflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    if (pageRef.current) pageRef.current.scrollTop = 0;
-  }, [article.id]);
-
-  const index = list.findIndex((a) => a.id === article.id);
-  const newer = index > 0 ? list[index - 1] : null;
-  const older = index >= 0 && index < list.length - 1 ? list[index + 1] : null;
-
-  return (
-    <div className="article-reader-back" role="dialog" aria-modal="true" aria-label={article.title}>
-      <div className="article-reader" ref={pageRef}>
-        <div className="article-reader-bar">
-          <button type="button" className="book-sheet-close" onClick={onClose}>
-            ‹ Carelnak
-          </button>
-          {isAdmin && (
-            <div className="article-reader-admin">
-              {isDraft && <b className="draft-pill">Draft</b>}
-              <IconBtn label="Edit article" onClick={onEdit}>
-                <IconPencil />
-              </IconBtn>
-              <IconBtn label="Delete article" danger onClick={onDelete}>
-                <IconTrash />
-              </IconBtn>
-            </div>
-          )}
-        </div>
-
-        <article className="article-page">
-          <Cover src={article.cover} alt={article.title} className="hero" />
-          <p className="article-meta-line">
-            <em>{categoryLabel(article.category)}</em>
-            <span>{isDraft ? "Not published" : formatDay(article.publishedAt)}</span>
-            <span>{readingMinutes(article.body)} min read</span>
-          </p>
-          <h1 className="article-title">{article.title}</h1>
-          {article.author && <p className="article-byline">By {article.author}</p>}
-          {article.summary && <p className="article-summary">{article.summary}</p>}
-          <ArticleBody body={article.body} />
-        </article>
-
-        {(newer || older) && (
-          <nav className="article-pager" aria-label="More articles">
-            {older ? (
-              <button type="button" onClick={() => onOpen(older)}>
-                <small>‹ Older</small>
-                <span>{older.title}</span>
-              </button>
-            ) : (
-              <span />
-            )}
-            {newer ? (
-              <button type="button" className="next" onClick={() => onOpen(newer)}>
-                <small>Newer ›</small>
-                <span>{newer.title}</span>
-              </button>
-            ) : (
-              <span />
-            )}
-          </nav>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ArticleEditor({ value, isPublished, onClose, onSave }) {
+export function ArticleEditor({ value, isPublished, onClose, onSave }) {
   const [form, setForm] = useState({
     title: "",
     category: "story",
