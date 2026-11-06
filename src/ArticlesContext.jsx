@@ -8,6 +8,7 @@ const DRAFTS = "sungkharArticleDrafts";
 
 export const ARTICLE_CATEGORIES = [
   { id: "story", label: "Family story" },
+  { id: "thawngtha", label: "Thawngtha Bia" },
   { id: "news", label: "News" },
   { id: "history", label: "Historical record" },
 ];
