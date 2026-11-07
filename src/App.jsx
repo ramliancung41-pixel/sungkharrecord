@@ -6,6 +6,7 @@ import MediaGallery from "./MediaGallery";
 import TreeSearchBar from "./TreeSearchBar";
 import FamilyBook from "./FamilyBook";
 import LoginModal from "./LoginModal";
+import ShareQrButton from "./ShareQr";
 import { IconBtn, IconDove, IconPencil, IconTrash } from "./uiIcons";
 import { isDeceased } from "./memberFormat";
 import {
@@ -463,6 +464,7 @@ export default function App() {
         </nav>
         <div className="nav-end">
           <span className={`pulse ${live ? "on" : ""}`} title={status} />
+          <ShareQrButton initialTarget="tree" />
           <button className="btn gold" type="button" onClick={() => setMediaOpen(true)}>
             Media
           </button>

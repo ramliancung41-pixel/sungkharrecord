@@ -12,6 +12,7 @@ import {
   readingMinutes,
 } from "./Articles";
 import LoginModal from "./LoginModal";
+import ShareQrButton, { siteTargets } from "./ShareQr";
 import { IconBtn, IconPencil, IconTrash } from "./uiIcons";
 
 const SITE_TITLE = "Carelnak · Sungkhar Tuanthu";
@@ -80,6 +81,22 @@ export default function CarelnakSite() {
             <a href="/" className="cn-link">
               Family tree
             </a>
+            <ShareQrButton
+              key={article?.id || "home"}
+              targets={siteTargets(
+                article
+                  ? [
+                      {
+                        id: "article",
+                        label: "This article",
+                        caption: `${article.title} · Carelnak`,
+                        url: `${window.location.origin}/carelnak/${article.id}`,
+                      },
+                    ]
+                  : []
+              )}
+              initialTarget={article ? "article" : "carelnak"}
+            />
             {isAdmin ? (
               <>
                 <button className="btn gold" type="button" onClick={() => setEditing({ category: "story" })}>
